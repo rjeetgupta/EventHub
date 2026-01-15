@@ -11,20 +11,262 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+// ============ ENUMS ============
+enum RoleType {
+  SUPER_ADMIN
+  DEPARTMENT_ADMIN
+  GROUP_ADMIN
+  STUDENT
+}
+
+enum PermissionType {
+  CREATE_EVENT
+  UPDATE_EVENT
+  DELETE_EVENT
+  PUBLISH_EVENT
+  CLOSE_EVENT
+  MARK_ATTENDANCE
+  DECLARE_WINNERS
+  MANAGE_GROUP_ADMINS
+  ASSIGN_PERMISSIONS
+  VIEW_REGISTRATIONS
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  PUBLISHED
+  REGISTRATION_CLOSED
+  ONGOING
+  COMPLETED
+}
+
+enum EventMode {
+  ONLINE
+  OFFLINE
+  HYBRID
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CANCELLED
+  ATTENDED
+  ABSENT
+}
+
+// ============ CORE MODELS ============
+
+model Role {
+  id          String       @id @default(uuid())
+  name        RoleType     @unique
+  description String?
+  
+  // Relationships
+  users       User[]
+  permissions RolePermission[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@map("roles")
+}
+
+model Permission {
+  id          String         @id @default(uuid())
+  name        PermissionType @unique
+  description String?
+  
+  // Relationships
+  roles              RolePermission[]
+  groupAdminOverrides GroupAdminPermission[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime   @default(now())
+  
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-  posts Post[]
+  id        String  @id @default(uuid())
+  email     String  @unique
+  password  String
+  fullName  String
+  studentID String?
+  avatar    String?
+  isActive  Boolean @default(true)
+
+  // Role
+  roleId String
+  role   Role @relation(fields: [roleId], references: [id])
+
+  // Department association
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  // Group Admin permissions
+  groupAdminPermissions GroupAdminPermission[]
+
+  // Event relations
+  createdEvents  Event[] @relation("EventCreator")
+  approvedEvents Event[] @relation("EventApprover")
+
+  // Registration (students)
+  registrations Registration[]
+
+  // Approval actions
+  approvalsGiven Approval[] @relation("ApprovalByUser")
+
+  // Auth
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([roleId])
+  @@index([departmentId])
 }
 
-model Post {
-  id        Int     @id @default(autoincrement())
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  Int
+
+
+model Department {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  code        String  @unique
+  description String?
+
+  users  User[]
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+
+model GroupAdminPermission {
+  id           String @id @default(uuid())
+  userId       String
+  permissionId String
+  isGranted    Boolean @default(true)
+  grantedBy    String?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, permissionId])
+  @@map("group_admin_permissions")
+}
+
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+
+  date DateTime
+  time String
+
+  mode  EventMode
+  venue String?
+  link  String?
+
+  registrationDeadline DateTime
+  maxCapacity          Int
+  currentRegistrations Int @default(0)
+
+  category String
+  status   EventStatus @default(DRAFT)
+
+  // Approval
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User? @relation("EventApprover", fields: [approvedById], references: [id])
+
+  rejectionReason String?
+
+  // Ownership
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  creatorId String
+  creator   User @relation("EventCreator", fields: [creatorId], references: [id])
+
+  registrations Registration[]
+  approvals     Approval[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+
+
+model Registration {
+  id       String             @id @default(uuid())
+  status   RegistrationStatus @default(REGISTERED)
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  eventId String
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  registeredAt DateTime  @default(now())
+  attendedAt   DateTime?
+  cancelledAt  DateTime?
+
+  @@unique([userId, eventId])
+}
+
+
+
+model Approval {
+  id       String @id @default(uuid())
+  action   String
+  feedback String?
+
+  eventId String
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  approvedBy String
+  approver   User @relation("ApprovalByUser", fields: [approvedBy], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
