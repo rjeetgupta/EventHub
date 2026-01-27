@@ -23,12 +23,10 @@ export default function Navbar() {
   const {isAuthenticated, user} = useAppSelector((state) => state.auth)
 
   const visibleNavigation = NAVIGATION.filter(item => {
-    if (!user) {
-      return item.roles.includes("PUBLIC")
-    }
-
+    if (!item.roles) return true;
+    if (!user) return false
     // Logged-in user
-    return item.roles.includes(user.role)
+    return item.roles.includes(user?.role)
   })
 
   return (
