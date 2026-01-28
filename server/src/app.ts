@@ -2,6 +2,7 @@ import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser"
 import { errorHandler } from './middlewares/error.middleware.js';
+import routes from "./routes/index.js"
 
 const app: Application = express();
 
@@ -12,24 +13,38 @@ const app: Application = express();
  * - JSON: Parse JSON request bodies
  * - URL Encoded: Parse URL-encoded bodies
  */
-app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /**
+ * configure cors
+ */
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}))
+
+/**
  * Route Imports
  * All API routes are imported here
  */
-import authRoutes from './routes/auth.routes.js';
+// import authRoutes from './routes/auth.routes.js';
+// import departmentRoutes from "./routes/department.routes.js";
+// import eventRoutes from "./routes/event.routes.js";
 
 
 /**
  * Route Registration
  * All routes prefixed with /api/v1
  */
-app.use('/api/v1/auth', authRoutes);
-
+// app.use('/api/v1/auth', authRoutes);
+// app.use("/api/v1/departments", departmentRoutes);
+// app.use("/api/v1/events", eventRoutes)
 
 /**
  * Health Check Endpoint
@@ -55,6 +70,7 @@ app.use((_req: Request, res: Response) => {
   });
 });
 
+app.use(routes);
 /**
  * Global Error Handler Middleware
  * Must be last middleware - catches all errors
