@@ -9,6 +9,7 @@ export interface User {
   fullName: string;
   role: UserRole;
   departmentId?: string | null;
+  studentID?: string | null;
   isActive: boolean;
   emailVerified?: boolean;
   avtar?: string;

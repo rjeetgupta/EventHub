@@ -77,3 +77,8 @@ export type Role =
     ABSENT = "ABSENT",
   }
   
+export enum EventMode {
+  ONLINE = "ONLINE",
+  OFFLINE = "OFFLINE",
+  HYBRID = "HYBRID"
+}

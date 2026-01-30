@@ -1,4 +1,4 @@
-import { EventStatus, RegistrationStatus, UserRole } from "./common.types";
+import { EventMode, EventStatus, RegistrationStatus, UserRole } from "./common.types";
 
 export interface Event {
   id: string;
@@ -6,9 +6,9 @@ export interface Event {
   description: string;
   date: string;
   time: string;
-  mode: 'ONLINE' | 'OFFLINE' | 'HYBRID';
-  venue?: string;
-  link?: string;
+  mode: EventMode;
+  venue?: string | null;
+  link?: string | null;
   registrationDeadline: string;
   maxCapacity: number;
   currentRegistrations: number;
