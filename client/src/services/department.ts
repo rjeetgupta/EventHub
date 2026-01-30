@@ -1,7 +1,4 @@
 /**
- * ============================================================================
- * DEPARTMENT UTILITY FUNCTIONS
- * ============================================================================
  * 
  * Helper functions for department management:
  * - Permission checking and validation
@@ -9,8 +6,7 @@
  * - Department statistics formatting
  * - Analytics calculations
  * 
- * @module utils/department.utils
- * ============================================================================
+ * @module utils/department.util
  */
 
 import type {
@@ -19,7 +15,7 @@ import type {
   DepartmentAnalytics,
   PermissionDefinition,
   DepartmentStats,
-} from "@/lib/types/department.types"
+} from "@/lib/schema/department.schema"
 import { Permission, UserRole } from "@/lib/types/common.types";
 import type { User } from "@/lib/types/user.types";
 
@@ -399,9 +395,9 @@ export function getPermissionBadgeColor(permission: Permission): string {
  * @param department - Department object
  * @returns Whether events require approval
  */
-export function requiresEventApproval(department: Department): boolean {
-  return department.settings?.requireEventApproval || false;
-}
+// export function requiresEventApproval(department: Department): boolean {
+//   return department.settings?.requireEventApproval || false;
+// }
 
 /**
  * Check if user can create event based on monthly limit
@@ -410,16 +406,16 @@ export function requiresEventApproval(department: Department): boolean {
  * @param eventsThisMonth - Number of events created this month
  * @returns Whether user can create more events
  */
-export function canCreateEvent(
-  department: Department,
-  eventsThisMonth: number
-): boolean {
-  const maxEvents = department.settings?.maxEventsPerMonth;
+// export function canCreateEvent(
+//   department: Department,
+//   eventsThisMonth: number
+// ): boolean {
+//   const maxEvents = department.settings?.maxEventsPerMonth;
   
-  if (!maxEvents) return true; // No limit set
+//   if (!maxEvents) return true; // No limit set
   
-  return eventsThisMonth < maxEvents;
-}
+//   return eventsThisMonth < maxEvents;
+// }
 
 /**
  * Get remaining events quota for the month
@@ -428,16 +424,16 @@ export function canCreateEvent(
  * @param eventsThisMonth - Number of events created this month
  * @returns Remaining events that can be created
  */
-export function getRemainingEventsQuota(
-  department: Department,
-  eventsThisMonth: number
-): number | null {
-  const maxEvents = department.settings?.maxEventsPerMonth;
+// export function getRemainingEventsQuota(
+//   department: Department,
+//   eventsThisMonth: number
+// ): number | null {
+//   const maxEvents = department.settings?.maxEventsPerMonth;
   
-  if (!maxEvents) return null; // No limit set
+//   if (!maxEvents) return null; // No limit set
   
-  return Math.max(0, maxEvents - eventsThisMonth);
-}
+//   return Math.max(0, maxEvents - eventsThisMonth);
+// }
 
 // EXPORT ALL UTILITIES
 
@@ -468,7 +464,7 @@ export const departmentUtils = {
   getPermissionBadgeColor,
   
   // Settings
-  requiresEventApproval,
-  canCreateEvent,
-  getRemainingEventsQuota,
+  // requiresEventApproval,
+  // canCreateEvent,
+  // getRemainingEventsQuota,
 };
