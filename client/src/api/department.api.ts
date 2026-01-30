@@ -11,9 +11,8 @@ import type {
   AssignGroupAdminRequest,
   UpdateGroupAdminPermissionsRequest,
   DepartmentAnalytics,
-  DepartmentAnalyticsFilters,
   PermissionDefinition,
-} from "@/lib/types/department.types";
+} from "@/lib/schema/department.schema";
 import type { ApiResponse } from "@/lib/types/common.types";
 
 
@@ -534,25 +533,25 @@ export const validatePermissions = async (
  * });
  * ```
  */
-export const getDepartmentAnalytics = async (
-  departmentId: string,
-  filters?: DepartmentAnalyticsFilters
-): Promise<DepartmentAnalytics> => {
-  try {
-    const response = await axiosInstance.get<ApiResponse<DepartmentAnalytics>>(
-      `/departments/${departmentId}/analytics`,
-      { params: filters }
-    );
+// export const getDepartmentAnalytics = async (
+//   departmentId: string,
+//   filters?: DepartmentAnalyticsFilters
+// ): Promise<DepartmentAnalytics> => {
+//   try {
+//     const response = await axiosInstance.get<ApiResponse<DepartmentAnalytics>>(
+//       `/departments/${departmentId}/analytics`,
+//       { params: filters }
+//     );
 
-    if (!response.data.success || !response.data.data) {
-      throw new Error('Failed to fetch analytics');
-    }
+//     if (!response.data.success || !response.data.data) {
+//       throw new Error('Failed to fetch analytics');
+//     }
 
-    return response.data.data;
-  } catch (error) {
-    throw new Error(handleApiError(error));
-  }
-};
+//     return response.data.data;
+//   } catch (error) {
+//     throw new Error(handleApiError(error));
+//   }
+// };
 
 /**
  * Export department analytics report
@@ -580,25 +579,25 @@ export const getDepartmentAnalytics = async (
  * a.click();
  * ```
  */
-export const exportAnalytics = async (
-  departmentId: string,
-  format: 'pdf' | 'excel',
-  filters?: DepartmentAnalyticsFilters
-): Promise<Blob> => {
-  try {
-    const response = await axiosInstance.get(
-      `/departments/${departmentId}/analytics/export`,
-      {
-        params: { ...filters, format },
-        responseType: 'blob',
-      }
-    );
+// export const exportAnalytics = async (
+//   departmentId: string,
+//   format: 'pdf' | 'excel',
+//   filters?: DepartmentAnalyticsFilters
+// ): Promise<Blob> => {
+//   try {
+//     const response = await axiosInstance.get(
+//       `/departments/${departmentId}/analytics/export`,
+//       {
+//         params: { ...filters, format },
+//         responseType: 'blob',
+//       }
+//     );
 
-    return response.data;
-  } catch (error) {
-    throw new Error(handleApiError(error));
-  }
-};
+//     return response.data;
+//   } catch (error) {
+//     throw new Error(handleApiError(error));
+//   }
+// };
 
 /**
  * Get department performance comparison
@@ -615,30 +614,30 @@ export const exportAnalytics = async (
  * const comparison = await departmentApi.getDepartmentComparison('dept-123', 'quarter');
  * ```
  */
-export const getDepartmentComparison = async (
-  departmentId: string,
-  comparisonPeriod: 'month' | 'quarter' | 'year'
-): Promise<{
-  currentDepartment: DepartmentAnalytics['overview'];
-  averageAcrossAll: DepartmentAnalytics['overview'];
-  ranking: number;
-  totalDepartments: number;
-}> => {
-  try {
-    const response = await axiosInstance.get<ApiResponse<any>>(
-      `/departments/${departmentId}/analytics/comparison`,
-      { params: { period: comparisonPeriod } }
-    );
+// export const getDepartmentComparison = async (
+//   departmentId: string,
+//   comparisonPeriod: 'month' | 'quarter' | 'year'
+// ): Promise<{
+//   currentDepartment: DepartmentAnalytics['overview'];
+//   averageAcrossAll: DepartmentAnalytics['overview'];
+//   ranking: number;
+//   totalDepartments: number;
+// }> => {
+//   try {
+//     const response = await axiosInstance.get<ApiResponse<any>>(
+//       `/departments/${departmentId}/analytics/comparison`,
+//       { params: { period: comparisonPeriod } }
+//     );
 
-    if (!response.data.success || !response.data.data) {
-      throw new Error('Failed to fetch comparison data');
-    }
+//     if (!response.data.success || !response.data.data) {
+//       throw new Error('Failed to fetch comparison data');
+//     }
 
-    return response.data.data;
-  } catch (error) {
-    throw new Error(handleApiError(error));
-  }
-};
+//     return response.data.data;
+//   } catch (error) {
+//     throw new Error(handleApiError(error));
+//   }
+// };
 
 // ============================================================================
 // EXPORT ALL METHODS AS OBJECT
@@ -666,7 +665,4 @@ export const departmentApi = {
   validatePermissions,
   
   // Analytics
-  getDepartmentAnalytics,
-  exportAnalytics,
-  getDepartmentComparison,
 };
