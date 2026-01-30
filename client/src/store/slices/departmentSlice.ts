@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { departmentApi } from '@/api/department.api';
-import type {
+import {
   Department,
   DepartmentsResponse,
   CreateDepartmentRequest,
@@ -11,23 +11,50 @@ import type {
   GroupAdminFilters,
   AssignGroupAdminRequest,
   UpdateGroupAdminPermissionsRequest,
-  DepartmentAnalytics,
-  DepartmentAnalyticsFilters,
   PermissionDefinition,
-} from "@/lib/types/department.types";
-import { DepartmentState } from '@/lib/types/department.types';
+} from "@/lib/schema/department.schema";
 
+// ============================================================================
+// STATE INTERFACE
+// ============================================================================
 
-/**
- * Initial department state
- */
+interface DepartmentState {
+  departments: Department[];
+  currentDepartment: Department | null;
+  groupAdmins: GroupAdmin[];
+  currentGroupAdmin: GroupAdmin | null;
+  availablePermissions: PermissionDefinition[];
+  
+  departmentsPagination: {
+    total: number;
+    page: number;
+    totalPages: number;
+    limit: number;
+  };
+  
+  groupAdminsPagination: {
+    total: number;
+    page: number;
+    totalPages: number;
+    limit: number;
+  };
+  
+  isLoading: boolean;
+  isCreatingDepartment: boolean;
+  isUpdatingDepartment: boolean;
+  isDeletingDepartment: boolean;
+  isAssigningAdmin: boolean;
+  isUpdatingPermissions: boolean;
+  
+  error: string | null;
+}
+
 const initialState: DepartmentState = {
   departments: [],
   currentDepartment: null,
   groupAdmins: [],
   currentGroupAdmin: null,
   availablePermissions: [],
-  analytics: null,
   departmentsPagination: {
     total: 0,
     page: 1,
@@ -38,10 +65,9 @@ const initialState: DepartmentState = {
     total: 0,
     page: 1,
     totalPages: 0,
-    limit: 10,
+    limit: 20,
   },
   isLoading: false,
-  isLoadingAnalytics: false,
   isCreatingDepartment: false,
   isUpdatingDepartment: false,
   isDeletingDepartment: false,
@@ -50,29 +76,33 @@ const initialState: DepartmentState = {
   error: null,
 };
 
-/**
- * Fetch all departments with filters
- */
+// ============================================================================
+// ASYNC THUNKS - DEPARTMENTS
+// ============================================================================
+
 export const fetchDepartments = createAsyncThunk<
   DepartmentsResponse,
-  DepartmentFilters | undefined,
+  Partial<DepartmentFilters> | undefined,
   { rejectValue: string }
 >(
   'department/fetchDepartments',
   async (filters, { rejectWithValue }) => {
     try {
-      const response = await departmentApi.getDepartments(filters);
-      return response;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch departments';
-      return rejectWithValue(message);
+      const normalizedFilters: DepartmentFilters = {
+        page: filters?.page ?? 1,
+        limit: filters?.limit ?? 10,
+        sortBy: filters?.sortBy ?? "createdAt",
+        sortOrder: filters?.sortOrder ?? "desc",
+        search: filters?.search,
+        isActive: filters?.isActive,
+      };
+      return await departmentApi.getDepartments(normalizedFilters);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch departments');
     }
   }
 );
 
-/**
- * Fetch single department by ID
- */
 export const fetchDepartmentById = createAsyncThunk<
   Department,
   string,
@@ -81,18 +111,13 @@ export const fetchDepartmentById = createAsyncThunk<
   'department/fetchDepartmentById',
   async (id, { rejectWithValue }) => {
     try {
-      const department = await departmentApi.getDepartmentById(id);
-      return department;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch department';
-      return rejectWithValue(message);
+      return await departmentApi.getDepartmentById(id);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch department');
     }
   }
 );
 
-/**
- * Create new department
- */
 export const createDepartment = createAsyncThunk<
   Department,
   CreateDepartmentRequest,
@@ -101,18 +126,14 @@ export const createDepartment = createAsyncThunk<
   'department/createDepartment',
   async (data, { rejectWithValue }) => {
     try {
-      const department = await departmentApi.createDepartment(data);
-      return department;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create department';
-      return rejectWithValue(message);
+      const response = await departmentApi.createDepartment(data);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to create department');
     }
   }
 );
 
-/**
- * Update existing department
- */
 export const updateDepartment = createAsyncThunk<
   Department,
   { id: string; data: UpdateDepartmentRequest },
@@ -121,18 +142,13 @@ export const updateDepartment = createAsyncThunk<
   'department/updateDepartment',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const department = await departmentApi.updateDepartment(id, data);
-      return department;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update department';
-      return rejectWithValue(message);
+      return await departmentApi.updateDepartment(id, data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to update department');
     }
   }
 );
 
-/**
- * Delete department
- */
 export const deleteDepartment = createAsyncThunk<
   string,
   string,
@@ -143,16 +159,12 @@ export const deleteDepartment = createAsyncThunk<
     try {
       await departmentApi.deleteDepartment(id);
       return id;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete department';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to delete department');
     }
   }
 );
 
-/**
- * Toggle department status
- */
 export const toggleDepartmentStatus = createAsyncThunk<
   Department,
   { id: string; isActive: boolean },
@@ -161,38 +173,32 @@ export const toggleDepartmentStatus = createAsyncThunk<
   'department/toggleStatus',
   async ({ id, isActive }, { rejectWithValue }) => {
     try {
-      const department = await departmentApi.toggleDepartmentStatus(id, isActive);
-      return department;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to toggle department status';
-      return rejectWithValue(message);
+      return await departmentApi.toggleDepartmentStatus(id, isActive);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to toggle status');
     }
   }
 );
 
-/**
- * Fetch group admins for a department
- */
-export const fetchGroupAdmins = createAsyncThunk<
-  GroupAdminsResponse,
-  { departmentId: string; filters?: GroupAdminFilters },
-  { rejectValue: string }
->(
-  'department/fetchGroupAdmins',
-  async ({ departmentId, filters }, { rejectWithValue }) => {
-    try {
-      const response = await departmentApi.getGroupAdmins(departmentId, filters);
-      return response;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch group admins';
-      return rejectWithValue(message);
-    }
-  }
-);
+// ============================================================================
+// ASYNC THUNKS - GROUP ADMINS
+// ============================================================================
 
-/**
- * Fetch single group admin by ID
- */
+// export const fetchGroupAdmins = createAsyncThunk<
+//   GroupAdminsResponse,
+//   { departmentId: string; filters?: Partial<GroupAdminFilters> },
+//   { rejectValue: string }
+// >(
+//   'department/fetchGroupAdmins',
+//   async ({ departmentId, filters }, { rejectWithValue }) => {
+//     try {
+//       return await departmentApi.getGroupAdmins(departmentId, filters);
+//     } catch (error: any) {
+//       return rejectWithValue(error.message || 'Failed to fetch group admins');
+//     }
+//   }
+// );
+
 export const fetchGroupAdminById = createAsyncThunk<
   GroupAdmin,
   { departmentId: string; groupAdminId: string },
@@ -201,18 +207,13 @@ export const fetchGroupAdminById = createAsyncThunk<
   'department/fetchGroupAdminById',
   async ({ departmentId, groupAdminId }, { rejectWithValue }) => {
     try {
-      const groupAdmin = await departmentApi.getGroupAdminById(departmentId, groupAdminId);
-      return groupAdmin;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch group admin';
-      return rejectWithValue(message);
+      return await departmentApi.getGroupAdminById(departmentId, groupAdminId);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch group admin');
     }
   }
 );
 
-/**
- * Assign a user as group admin
- */
 export const assignGroupAdmin = createAsyncThunk<
   GroupAdmin,
   { departmentId: string; data: AssignGroupAdminRequest },
@@ -221,18 +222,13 @@ export const assignGroupAdmin = createAsyncThunk<
   'department/assignGroupAdmin',
   async ({ departmentId, data }, { rejectWithValue }) => {
     try {
-      const groupAdmin = await departmentApi.assignGroupAdmin(departmentId, data);
-      return groupAdmin;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to assign group admin';
-      return rejectWithValue(message);
+      return await departmentApi.assignGroupAdmin(departmentId, data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to assign group admin');
     }
   }
 );
 
-/**
- * Update group admin permissions
- */
 export const updateGroupAdminPermissions = createAsyncThunk<
   GroupAdmin,
   {
@@ -245,22 +241,17 @@ export const updateGroupAdminPermissions = createAsyncThunk<
   'department/updatePermissions',
   async ({ departmentId, groupAdminId, data }, { rejectWithValue }) => {
     try {
-      const groupAdmin = await departmentApi.updateGroupAdminPermissions(
+      return await departmentApi.updateGroupAdminPermissions(
         departmentId,
         groupAdminId,
         data
       );
-      return groupAdmin;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update permissions';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to update permissions');
     }
   }
 );
 
-/**
- * Remove group admin
- */
 export const removeGroupAdmin = createAsyncThunk<
   string,
   { departmentId: string; groupAdminId: string },
@@ -271,16 +262,12 @@ export const removeGroupAdmin = createAsyncThunk<
     try {
       await departmentApi.removeGroupAdmin(departmentId, groupAdminId);
       return groupAdminId;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to remove group admin';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to remove group admin');
     }
   }
 );
 
-/**
- * Toggle group admin status
- */
 export const toggleGroupAdminStatus = createAsyncThunk<
   GroupAdmin,
   { departmentId: string; groupAdminId: string; isActive: boolean },
@@ -289,22 +276,21 @@ export const toggleGroupAdminStatus = createAsyncThunk<
   'department/toggleGroupAdminStatus',
   async ({ departmentId, groupAdminId, isActive }, { rejectWithValue }) => {
     try {
-      const groupAdmin = await departmentApi.toggleGroupAdminStatus(
+      return await departmentApi.toggleGroupAdminStatus(
         departmentId,
         groupAdminId,
         isActive
       );
-      return groupAdmin;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to toggle group admin status';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to toggle status');
     }
   }
 );
 
-/**
- * Fetch available permissions
- */
+// ============================================================================
+// ASYNC THUNKS - PERMISSIONS
+// ============================================================================
+
 export const fetchAvailablePermissions = createAsyncThunk<
   PermissionDefinition[],
   void,
@@ -313,94 +299,33 @@ export const fetchAvailablePermissions = createAsyncThunk<
   'department/fetchPermissions',
   async (_, { rejectWithValue }) => {
     try {
-      const permissions = await departmentApi.getAvailablePermissions();
-      return permissions;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch permissions';
-      return rejectWithValue(message);
+      return await departmentApi.getAvailablePermissions();
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch permissions');
     }
   }
 );
 
-/**
- * Fetch department analytics
- */
-export const fetchDepartmentAnalytics = createAsyncThunk<
-  DepartmentAnalytics,
-  { departmentId: string; filters?: DepartmentAnalyticsFilters },
-  { rejectValue: string }
->(
-  'department/fetchAnalytics',
-  async ({ departmentId, filters }, { rejectWithValue }) => {
-    try {
-      const analytics = await departmentApi.getDepartmentAnalytics(departmentId, filters);
-      return analytics;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch analytics';
-      return rejectWithValue(message);
-    }
-  }
-);
-
-/**
- * Export analytics report
- */
-export const exportDepartmentAnalytics = createAsyncThunk<
-  void,
-  {
-    departmentId: string;
-    format: 'pdf' | 'excel';
-    filters?: DepartmentAnalyticsFilters;
-  },
-  { rejectValue: string }
->(
-  'department/exportAnalytics',
-  async ({ departmentId, format, filters }, { rejectWithValue }) => {
-    try {
-      const blob = await departmentApi.exportAnalytics(departmentId, format, filters);
-      
-      // Create and trigger download
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `department-analytics-${departmentId}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to export analytics';
-      return rejectWithValue(message);
-    }
-  }
-);
+// ============================================================================
+// SLICE
+// ============================================================================
 
 const departmentSlice = createSlice({
   name: 'department',
   initialState,
   reducers: {
-
     clearError: (state) => {
       state.error = null;
     },
-    
     clearCurrentDepartment: (state) => {
       state.currentDepartment = null;
     },
-    
     clearCurrentGroupAdmin: (state) => {
       state.currentGroupAdmin = null;
     },
-    
-    clearAnalytics: (state) => {
-      state.analytics = null;
-    },
-    
     setDepartmentError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
-      state.isLoading = false;
     },
-    
     resetDepartmentState: () => initialState,
   },
   extraReducers: (builder) => {
@@ -413,13 +338,7 @@ const departmentSlice = createSlice({
       .addCase(fetchDepartments.fulfilled, (state, action) => {
         state.isLoading = false;
         state.departments = action.payload.data;
-        state.departmentsPagination = {
-          total: action.payload.total,
-          page: action.payload.page,
-          totalPages: action.payload.totalPages,
-          limit: action.payload.limit,
-        };
-        state.error = null;
+        state.departmentsPagination = action.payload.pagination;
       })
       .addCase(fetchDepartments.rejected, (state, action) => {
         state.isLoading = false;
@@ -435,7 +354,6 @@ const departmentSlice = createSlice({
       .addCase(fetchDepartmentById.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentDepartment = action.payload;
-        state.error = null;
       })
       .addCase(fetchDepartmentById.rejected, (state, action) => {
         state.isLoading = false;
@@ -451,7 +369,6 @@ const departmentSlice = createSlice({
       .addCase(createDepartment.fulfilled, (state, action) => {
         state.isCreatingDepartment = false;
         state.departments.unshift(action.payload);
-        state.error = null;
       })
       .addCase(createDepartment.rejected, (state, action) => {
         state.isCreatingDepartment = false;
@@ -467,16 +384,12 @@ const departmentSlice = createSlice({
       .addCase(updateDepartment.fulfilled, (state, action) => {
         state.isUpdatingDepartment = false;
         
-        const index = state.departments.findIndex((d) => d.id === action.payload.id);
-        if (index !== -1) {
-          state.departments[index] = action.payload;
-        }
+        const index = state.departments.findIndex(d => d.id === action.payload.id);
+        if (index !== -1) state.departments[index] = action.payload;
         
         if (state.currentDepartment?.id === action.payload.id) {
           state.currentDepartment = action.payload;
         }
-        
-        state.error = null;
       })
       .addCase(updateDepartment.rejected, (state, action) => {
         state.isUpdatingDepartment = false;
@@ -491,8 +404,7 @@ const departmentSlice = createSlice({
       })
       .addCase(deleteDepartment.fulfilled, (state, action) => {
         state.isDeletingDepartment = false;
-        state.departments = state.departments.filter((d) => d.id !== action.payload);
-        state.error = null;
+        state.departments = state.departments.filter(d => d.id !== action.payload);
       })
       .addCase(deleteDepartment.rejected, (state, action) => {
         state.isDeletingDepartment = false;
@@ -508,43 +420,33 @@ const departmentSlice = createSlice({
       .addCase(toggleDepartmentStatus.fulfilled, (state, action) => {
         state.isUpdatingDepartment = false;
         
-        const index = state.departments.findIndex((d) => d.id === action.payload.id);
-        if (index !== -1) {
-          state.departments[index] = action.payload;
-        }
+        const index = state.departments.findIndex(d => d.id === action.payload.id);
+        if (index !== -1) state.departments[index] = action.payload;
         
         if (state.currentDepartment?.id === action.payload.id) {
           state.currentDepartment = action.payload;
         }
-        
-        state.error = null;
       })
       .addCase(toggleDepartmentStatus.rejected, (state, action) => {
         state.isUpdatingDepartment = false;
-        state.error = action.payload || 'Failed to toggle department status';
+        state.error = action.payload || 'Failed to toggle status';
       });
 
     // FETCH GROUP ADMINS
-    builder
-      .addCase(fetchGroupAdmins.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(fetchGroupAdmins.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.groupAdmins = action.payload.groupAdmins;
-        state.groupAdminsPagination = {
-          total: action.payload.total,
-          page: action.payload.page,
-          totalPages: action.payload.totalPages,
-          limit: action.payload.limit,
-        };
-        state.error = null;
-      })
-      .addCase(fetchGroupAdmins.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload || 'Failed to fetch group admins';
-      });
+    // builder
+    //   .addCase(fetchGroupAdmins.pending, (state) => {
+    //     state.isLoading = true;
+    //     state.error = null;
+    //   })
+    //   .addCase(fetchGroupAdmins.fulfilled, (state, action) => {
+    //     state.isLoading = false;
+    //     state.groupAdmins = action.payload.data;
+    //     state.groupAdminsPagination = action.payload.pagination;
+    //   })
+    //   .addCase(fetchGroupAdmins.rejected, (state, action) => {
+    //     state.isLoading = false;
+    //     state.error = action.payload || 'Failed to fetch group admins';
+    //   });
 
     // FETCH GROUP ADMIN BY ID
     builder
@@ -555,7 +457,6 @@ const departmentSlice = createSlice({
       .addCase(fetchGroupAdminById.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentGroupAdmin = action.payload;
-        state.error = null;
       })
       .addCase(fetchGroupAdminById.rejected, (state, action) => {
         state.isLoading = false;
@@ -571,7 +472,6 @@ const departmentSlice = createSlice({
       .addCase(assignGroupAdmin.fulfilled, (state, action) => {
         state.isAssigningAdmin = false;
         state.groupAdmins.unshift(action.payload);
-        state.error = null;
       })
       .addCase(assignGroupAdmin.rejected, (state, action) => {
         state.isAssigningAdmin = false;
@@ -587,16 +487,12 @@ const departmentSlice = createSlice({
       .addCase(updateGroupAdminPermissions.fulfilled, (state, action) => {
         state.isUpdatingPermissions = false;
         
-        const index = state.groupAdmins.findIndex((g) => g.id === action.payload.id);
-        if (index !== -1) {
-          state.groupAdmins[index] = action.payload;
-        }
+        const index = state.groupAdmins.findIndex(g => g.id === action.payload.id);
+        if (index !== -1) state.groupAdmins[index] = action.payload;
         
         if (state.currentGroupAdmin?.id === action.payload.id) {
           state.currentGroupAdmin = action.payload;
         }
-        
-        state.error = null;
       })
       .addCase(updateGroupAdminPermissions.rejected, (state, action) => {
         state.isUpdatingPermissions = false;
@@ -611,8 +507,7 @@ const departmentSlice = createSlice({
       })
       .addCase(removeGroupAdmin.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.groupAdmins = state.groupAdmins.filter((g) => g.id !== action.payload);
-        state.error = null;
+        state.groupAdmins = state.groupAdmins.filter(g => g.id !== action.payload);
       })
       .addCase(removeGroupAdmin.rejected, (state, action) => {
         state.isLoading = false;
@@ -628,20 +523,16 @@ const departmentSlice = createSlice({
       .addCase(toggleGroupAdminStatus.fulfilled, (state, action) => {
         state.isLoading = false;
         
-        const index = state.groupAdmins.findIndex((g) => g.id === action.payload.id);
-        if (index !== -1) {
-          state.groupAdmins[index] = action.payload;
-        }
+        const index = state.groupAdmins.findIndex(g => g.id === action.payload.id);
+        if (index !== -1) state.groupAdmins[index] = action.payload;
         
         if (state.currentGroupAdmin?.id === action.payload.id) {
           state.currentGroupAdmin = action.payload;
         }
-        
-        state.error = null;
       })
       .addCase(toggleGroupAdminStatus.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload || 'Failed to toggle group admin status';
+        state.error = action.payload || 'Failed to toggle status';
       });
 
     // FETCH AVAILABLE PERMISSIONS
@@ -653,42 +544,10 @@ const departmentSlice = createSlice({
       .addCase(fetchAvailablePermissions.fulfilled, (state, action) => {
         state.isLoading = false;
         state.availablePermissions = action.payload;
-        state.error = null;
       })
       .addCase(fetchAvailablePermissions.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch permissions';
-      });
-
-    // FETCH ANALYTICS
-    builder
-      .addCase(fetchDepartmentAnalytics.pending, (state) => {
-        state.isLoadingAnalytics = true;
-        state.error = null;
-      })
-      .addCase(fetchDepartmentAnalytics.fulfilled, (state, action) => {
-        state.isLoadingAnalytics = false;
-        state.analytics = action.payload;
-        state.error = null;
-      })
-      .addCase(fetchDepartmentAnalytics.rejected, (state, action) => {
-        state.isLoadingAnalytics = false;
-        state.error = action.payload || 'Failed to fetch analytics';
-      });
-
-    // EXPORT ANALYTICS
-    builder
-      .addCase(exportDepartmentAnalytics.pending, (state) => {
-        state.isLoadingAnalytics = true;
-        state.error = null;
-      })
-      .addCase(exportDepartmentAnalytics.fulfilled, (state) => {
-        state.isLoadingAnalytics = false;
-        state.error = null;
-      })
-      .addCase(exportDepartmentAnalytics.rejected, (state, action) => {
-        state.isLoadingAnalytics = false;
-        state.error = action.payload || 'Failed to export analytics';
       });
   },
 });
@@ -697,7 +556,6 @@ export const {
   clearError,
   clearCurrentDepartment,
   clearCurrentGroupAdmin,
-  clearAnalytics,
   setDepartmentError,
   resetDepartmentState,
 } = departmentSlice.actions;

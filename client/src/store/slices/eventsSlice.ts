@@ -1,6 +1,10 @@
+/**
+ * Events Redux Slice - Fixed Version
+ */
+
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { eventsApi } from '@/api/events.api';
-import type {
+import {
   Event,
   EventFilters,
   CreateEventRequest,
@@ -8,67 +12,84 @@ import type {
   Registration,
   EventsResponse,
   MyEventsResponse,
-} from "@/lib/types/event.types";
-import { EventsState } from '@/lib/types/event.types';
+  ApprovalRequest,
+  MarkAttendanceRequest,
+} from "@/lib/schema/event.schema";
 
-/**
- * Initial events state
- */
+// ============================================================================
+// STATE INTERFACE
+// ============================================================================
+
+interface EventsState {
+  // All events (public listing)
+  events: Event[];
+  currentEvent: Event | null;
+  
+  // Department events (for group admin)
+  departmentEvents: Event[];
+  
+  // User's registered events (for students)
+  myEvents: Event[];
+  myRegistrations: Registration[];
+  
+  // Pagination
+  pagination: {
+    total: number;
+    page: number;
+    totalPages: number;
+    limit: number;
+  };
+  
+  // Loading states
+  isLoading: boolean;
+  isCreating: boolean;
+  isUpdating: boolean;
+  isDeleting: boolean;
+  isRegistering: boolean;
+  
+  // Errors
+  error: string | null;
+}
+
 const initialState: EventsState = {
   events: [],
   currentEvent: null,
+  departmentEvents: [],
   myEvents: [],
   myRegistrations: [],
-  departmentEvents: [],
-  total: 0,
-  page: 1,
-  totalPages: 0,
-  limit: 10,
+  pagination: {
+    total: 0,
+    page: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   isLoading: false,
-  error: null,
-  isRegistering: false,
   isCreating: false,
   isUpdating: false,
   isDeleting: false,
+  isRegistering: false,
+  error: null,
 };
 
 // ============================================================================
 // ASYNC THUNKS - EVENT LISTING
 // ============================================================================
 
-/**
- * Fetch all events with filters
- * 
- * @example
- * ```ts
- * dispatch(fetchEvents({ departments: ['btech'], status: 'upcoming' }));
- * ```
- */
 export const fetchEvents = createAsyncThunk<
   EventsResponse,
-  EventFilters | undefined,
+  Partial<EventFilters> | undefined,
   { rejectValue: string }
 >(
   'events/fetchEvents',
   async (filters, { rejectWithValue }) => {
     try {
-      const response = await eventsApi.getEvents(filters);
-      return response;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch events';
-      return rejectWithValue(message);
+      return await eventsApi.getEvents(filters);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch events');
     }
   }
 );
 
-/**
- * Fetch single event by ID
- * 
- * @example
- * ```ts
- * dispatch(fetchEventById('event-123'));
- * ```
- */
 export const fetchEventById = createAsyncThunk<
   Event,
   string,
@@ -77,11 +98,9 @@ export const fetchEventById = createAsyncThunk<
   'events/fetchEventById',
   async (id, { rejectWithValue }) => {
     try {
-      const event = await eventsApi.getEventById(id);
-      return event;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch event';
-      return rejectWithValue(message);
+      return await eventsApi.getEventById(id);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch event');
     }
   }
 );
@@ -90,14 +109,6 @@ export const fetchEventById = createAsyncThunk<
 // ASYNC THUNKS - EVENT MANAGEMENT
 // ============================================================================
 
-/**
- * Create new event
- * 
- * @example
- * ```ts
- * dispatch(createEvent({ title: 'Workshop', department: 'btech', ... }));
- * ```
- */
 export const createEvent = createAsyncThunk<
   Event,
   CreateEventRequest,
@@ -106,23 +117,13 @@ export const createEvent = createAsyncThunk<
   'events/createEvent',
   async (data, { rejectWithValue }) => {
     try {
-      const event = await eventsApi.createEvent(data);
-      return event;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create event';
-      return rejectWithValue(message);
+      return await eventsApi.createEvent(data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to create event');
     }
   }
 );
 
-/**
- * Update existing event
- * 
- * @example
- * ```ts
- * dispatch(updateEvent({ id: 'event-123', data: { maxCapacity: 100 } }));
- * ```
- */
 export const updateEvent = createAsyncThunk<
   Event,
   { id: string; data: UpdateEventRequest },
@@ -131,23 +132,13 @@ export const updateEvent = createAsyncThunk<
   'events/updateEvent',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const event = await eventsApi.updateEvent(id, data);
-      return event;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update event';
-      return rejectWithValue(message);
+      return await eventsApi.updateEvent(id, data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to update event');
     }
   }
 );
 
-/**
- * Delete event
- * 
- * @example
- * ```ts
- * dispatch(deleteEvent('event-123'));
- * ```
- */
 export const deleteEvent = createAsyncThunk<
   string,
   string,
@@ -158,21 +149,12 @@ export const deleteEvent = createAsyncThunk<
     try {
       await eventsApi.deleteEvent(id);
       return id;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete event';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to delete event');
     }
   }
 );
 
-/**
- * Submit event for approval
- * 
- * @example
- * ```ts
- * dispatch(submitEventForApproval('event-123'));
- * ```
- */
 export const submitEventForApproval = createAsyncThunk<
   Event,
   string,
@@ -181,23 +163,13 @@ export const submitEventForApproval = createAsyncThunk<
   'events/submitForApproval',
   async (id, { rejectWithValue }) => {
     try {
-      const event = await eventsApi.submitForApproval(id);
-      return event;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit event';
-      return rejectWithValue(message);
+      return await eventsApi.submitForApproval(id);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to submit event');
     }
   }
 );
 
-/**
- * Save event as draft
- * 
- * @example
- * ```ts
- * dispatch(saveEventDraft({ title: 'Draft', ... }));
- * ```
- */
 export const saveEventDraft = createAsyncThunk<
   Event,
   CreateEventRequest,
@@ -206,11 +178,9 @@ export const saveEventDraft = createAsyncThunk<
   'events/saveDraft',
   async (data, { rejectWithValue }) => {
     try {
-      const event = await eventsApi.saveDraft(data);
-      return event;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save draft';
-      return rejectWithValue(message);
+      return await eventsApi.saveDraft(data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to save draft');
     }
   }
 );
@@ -219,14 +189,6 @@ export const saveEventDraft = createAsyncThunk<
 // ASYNC THUNKS - DEPARTMENT EVENTS
 // ============================================================================
 
-/**
- * Fetch department events
- * 
- * @example
- * ```ts
- * dispatch(fetchDepartmentEvents('approved'));
- * ```
- */
 export const fetchDepartmentEvents = createAsyncThunk<
   Event[],
   string | undefined,
@@ -235,11 +197,43 @@ export const fetchDepartmentEvents = createAsyncThunk<
   'events/fetchDepartmentEvents',
   async (status, { rejectWithValue }) => {
     try {
-      const events = await eventsApi.getDepartmentEvents(status);
-      return events;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch department events';
-      return rejectWithValue(message);
+      return await eventsApi.getDepartmentEvents(status);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch department events');
+    }
+  }
+);
+
+// ============================================================================
+// ASYNC THUNKS - APPROVAL (DEPT ADMIN)
+// ============================================================================
+
+export const handleEventApproval = createAsyncThunk<
+  Event,
+  { eventId: string; data: ApprovalRequest },
+  { rejectValue: string }
+>(
+  'events/handleApproval',
+  async ({ eventId, data }, { rejectWithValue }) => {
+    try {
+      return await eventsApi.handleEventApproval(eventId, data);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to process approval');
+    }
+  }
+);
+
+export const publishEvent = createAsyncThunk<
+  Event,
+  string,
+  { rejectValue: string }
+>(
+  'events/publishEvent',
+  async (id, { rejectWithValue }) => {
+    try {
+      return await eventsApi.publishEvent(id);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to publish event');
     }
   }
 );
@@ -248,14 +242,6 @@ export const fetchDepartmentEvents = createAsyncThunk<
 // ASYNC THUNKS - REGISTRATIONS
 // ============================================================================
 
-/**
- * Register for event
- * 
- * @example
- * ```ts
- * dispatch(registerForEvent('event-123'));
- * ```
- */
 export const registerForEvent = createAsyncThunk<
   { eventId: string; registration: Registration },
   string,
@@ -266,21 +252,12 @@ export const registerForEvent = createAsyncThunk<
     try {
       const registration = await eventsApi.registerForEvent(eventId);
       return { eventId, registration };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to register';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to register');
     }
   }
 );
 
-/**
- * Cancel registration
- * 
- * @example
- * ```ts
- * dispatch(cancelEventRegistration('event-123'));
- * ```
- */
 export const cancelEventRegistration = createAsyncThunk<
   string,
   string,
@@ -291,21 +268,12 @@ export const cancelEventRegistration = createAsyncThunk<
     try {
       await eventsApi.cancelRegistration(eventId);
       return eventId;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to cancel registration';
-      return rejectWithValue(message);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to cancel registration');
     }
   }
 );
 
-/**
- * Fetch user's events
- * 
- * @example
- * ```ts
- * dispatch(fetchMyEvents('upcoming'));
- * ```
- */
 export const fetchMyEvents = createAsyncThunk<
   MyEventsResponse,
   'upcoming' | 'finished' | undefined,
@@ -314,90 +282,69 @@ export const fetchMyEvents = createAsyncThunk<
   'events/fetchMyEvents',
   async (status, { rejectWithValue }) => {
     try {
-      const response = await eventsApi.getMyEvents(status);
-      return response;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch my events';
-      return rejectWithValue(message);
-    }
-  }
-);
-
-/**
- * Download certificate
- * 
- * @example
- * ```ts
- * dispatch(downloadEventCertificate('event-123'));
- * ```
- */
-export const downloadEventCertificate = createAsyncThunk<
-  void,
-  string,
-  { rejectValue: string }
->(
-  'events/downloadCertificate',
-  async (eventId, { rejectWithValue }) => {
-    try {
-      const blob = await eventsApi.downloadCertificate(eventId);
-      
-      // Create and trigger download
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `certificate-${eventId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to download certificate';
-      return rejectWithValue(message);
+      return await eventsApi.getMyEvents(status);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch my events');
     }
   }
 );
 
 // ============================================================================
-// SLICE DEFINITION
+// ASYNC THUNKS - ATTENDANCE
+// ============================================================================
+
+export const markAttendance = createAsyncThunk<
+  { eventId: string },
+  { eventId: string; data: MarkAttendanceRequest },
+  { rejectValue: string }
+>(
+  'events/markAttendance',
+  async ({ eventId, data }, { rejectWithValue }) => {
+    try {
+      await eventsApi.markAttendance(eventId, data);
+      return { eventId };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to mark attendance');
+    }
+  }
+);
+
+export const closeRegistration = createAsyncThunk<
+  Event,
+  string,
+  { rejectValue: string }
+>(
+  'events/closeRegistration',
+  async (eventId, { rejectWithValue }) => {
+    try {
+      return await eventsApi.closeRegistration(eventId);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to close registration');
+    }
+  }
+);
+
+// ============================================================================
+// SLICE
 // ============================================================================
 
 const eventsSlice = createSlice({
   name: 'events',
   initialState,
   reducers: {
-    /**
-     * Clear any event errors
-     */
     clearError: (state) => {
       state.error = null;
     },
-    
-    /**
-     * Clear current event
-     */
     clearCurrentEvent: (state) => {
       state.currentEvent = null;
     },
-    
-    /**
-     * Set event error manually
-     */
     setEventError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
-      state.isLoading = false;
     },
-    
-    /**
-     * Reset events state
-     */
-    resetEventsState: (state) => {
-      return initialState;
-    },
+    resetEventsState: () => initialState,
   },
   extraReducers: (builder) => {
-    // ========================================================================
     // FETCH EVENTS
-    // ========================================================================
     builder
       .addCase(fetchEvents.pending, (state) => {
         state.isLoading = true;
@@ -406,20 +353,19 @@ const eventsSlice = createSlice({
       .addCase(fetchEvents.fulfilled, (state, action) => {
         state.isLoading = false;
         state.events = action.payload.events;
-        state.total = action.payload.total;
-        state.page = action.payload.page;
-        state.totalPages = action.payload.totalPages;
-        state.limit = action.payload.limit;
-        state.error = null;
+        state.pagination = {
+          total: action.payload.total,
+          page: action.payload.page,
+          totalPages: action.payload.totalPages,
+          limit: action.payload.limit,
+        };
       })
       .addCase(fetchEvents.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch events';
       });
 
-    // ========================================================================
     // FETCH EVENT BY ID
-    // ========================================================================
     builder
       .addCase(fetchEventById.pending, (state) => {
         state.isLoading = true;
@@ -428,16 +374,13 @@ const eventsSlice = createSlice({
       .addCase(fetchEventById.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentEvent = action.payload;
-        state.error = null;
       })
       .addCase(fetchEventById.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch event';
       });
 
-    // ========================================================================
     // CREATE EVENT
-    // ========================================================================
     builder
       .addCase(createEvent.pending, (state) => {
         state.isCreating = true;
@@ -445,18 +388,14 @@ const eventsSlice = createSlice({
       })
       .addCase(createEvent.fulfilled, (state, action) => {
         state.isCreating = false;
-        state.events.unshift(action.payload);
         state.departmentEvents.unshift(action.payload);
-        state.error = null;
       })
       .addCase(createEvent.rejected, (state, action) => {
         state.isCreating = false;
         state.error = action.payload || 'Failed to create event';
       });
 
-    // ========================================================================
     // UPDATE EVENT
-    // ========================================================================
     builder
       .addCase(updateEvent.pending, (state) => {
         state.isUpdating = true;
@@ -467,31 +406,23 @@ const eventsSlice = createSlice({
         
         // Update in events list
         const eventIndex = state.events.findIndex(e => e.id === action.payload.id);
-        if (eventIndex !== -1) {
-          state.events[eventIndex] = action.payload;
-        }
+        if (eventIndex !== -1) state.events[eventIndex] = action.payload;
         
         // Update in department events
         const deptIndex = state.departmentEvents.findIndex(e => e.id === action.payload.id);
-        if (deptIndex !== -1) {
-          state.departmentEvents[deptIndex] = action.payload;
-        }
+        if (deptIndex !== -1) state.departmentEvents[deptIndex] = action.payload;
         
-        // Update current event if it's the same
+        // Update current event
         if (state.currentEvent?.id === action.payload.id) {
           state.currentEvent = action.payload;
         }
-        
-        state.error = null;
       })
       .addCase(updateEvent.rejected, (state, action) => {
         state.isUpdating = false;
         state.error = action.payload || 'Failed to update event';
       });
 
-    // ========================================================================
     // DELETE EVENT
-    // ========================================================================
     builder
       .addCase(deleteEvent.pending, (state) => {
         state.isDeleting = true;
@@ -501,16 +432,13 @@ const eventsSlice = createSlice({
         state.isDeleting = false;
         state.events = state.events.filter(e => e.id !== action.payload);
         state.departmentEvents = state.departmentEvents.filter(e => e.id !== action.payload);
-        state.error = null;
       })
       .addCase(deleteEvent.rejected, (state, action) => {
         state.isDeleting = false;
         state.error = action.payload || 'Failed to delete event';
       });
 
-    // ========================================================================
     // SUBMIT FOR APPROVAL
-    // ========================================================================
     builder
       .addCase(submitEventForApproval.pending, (state) => {
         state.isLoading = true;
@@ -518,22 +446,15 @@ const eventsSlice = createSlice({
       })
       .addCase(submitEventForApproval.fulfilled, (state, action) => {
         state.isLoading = false;
-        
         const index = state.departmentEvents.findIndex(e => e.id === action.payload.id);
-        if (index !== -1) {
-          state.departmentEvents[index] = action.payload;
-        }
-        
-        state.error = null;
+        if (index !== -1) state.departmentEvents[index] = action.payload;
       })
       .addCase(submitEventForApproval.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to submit event';
       });
 
-    // ========================================================================
     // SAVE DRAFT
-    // ========================================================================
     builder
       .addCase(saveEventDraft.pending, (state) => {
         state.isCreating = true;
@@ -542,16 +463,13 @@ const eventsSlice = createSlice({
       .addCase(saveEventDraft.fulfilled, (state, action) => {
         state.isCreating = false;
         state.departmentEvents.unshift(action.payload);
-        state.error = null;
       })
       .addCase(saveEventDraft.rejected, (state, action) => {
         state.isCreating = false;
         state.error = action.payload || 'Failed to save draft';
       });
 
-    // ========================================================================
     // FETCH DEPARTMENT EVENTS
-    // ========================================================================
     builder
       .addCase(fetchDepartmentEvents.pending, (state) => {
         state.isLoading = true;
@@ -560,16 +478,13 @@ const eventsSlice = createSlice({
       .addCase(fetchDepartmentEvents.fulfilled, (state, action) => {
         state.isLoading = false;
         state.departmentEvents = action.payload;
-        state.error = null;
       })
       .addCase(fetchDepartmentEvents.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch department events';
       });
 
-    // ========================================================================
     // REGISTER FOR EVENT
-    // ========================================================================
     builder
       .addCase(registerForEvent.pending, (state) => {
         state.isRegistering = true;
@@ -579,25 +494,17 @@ const eventsSlice = createSlice({
         state.isRegistering = false;
         state.myRegistrations.unshift(action.payload.registration);
         
-        // Update current event registration count
+        // Update current event
         if (state.currentEvent?.id === action.payload.eventId) {
           state.currentEvent.currentRegistrations += 1;
-          state.currentEvent.registeredUsers = [
-            ...(state.currentEvent.registeredUsers || []),
-            action.payload.registration.userId,
-          ];
         }
-        
-        state.error = null;
       })
       .addCase(registerForEvent.rejected, (state, action) => {
         state.isRegistering = false;
         state.error = action.payload || 'Failed to register';
       });
 
-    // ========================================================================
     // CANCEL REGISTRATION
-    // ========================================================================
     builder
       .addCase(cancelEventRegistration.pending, (state) => {
         state.isLoading = true;
@@ -605,29 +512,20 @@ const eventsSlice = createSlice({
       })
       .addCase(cancelEventRegistration.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.myRegistrations = state.myRegistrations.filter(
-          r => r.eventId !== action.payload
-        );
+        state.myRegistrations = state.myRegistrations.filter(r => r.eventId !== action.payload);
         state.myEvents = state.myEvents.filter(e => e.id !== action.payload);
         
-        // Update current event registration count
+        // Update current event
         if (state.currentEvent?.id === action.payload) {
-          state.currentEvent.currentRegistrations = Math.max(
-            0,
-            state.currentEvent.currentRegistrations - 1
-          );
+          state.currentEvent.currentRegistrations = Math.max(0, state.currentEvent.currentRegistrations - 1);
         }
-        
-        state.error = null;
       })
       .addCase(cancelEventRegistration.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to cancel registration';
       });
 
-    // ========================================================================
     // FETCH MY EVENTS
-    // ========================================================================
     builder
       .addCase(fetchMyEvents.pending, (state) => {
         state.isLoading = true;
@@ -637,35 +535,76 @@ const eventsSlice = createSlice({
         state.isLoading = false;
         state.myEvents = action.payload.events;
         state.myRegistrations = action.payload.registrations;
-        state.error = null;
       })
       .addCase(fetchMyEvents.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch my events';
       });
 
-    // ========================================================================
-    // DOWNLOAD CERTIFICATE
-    // ========================================================================
+    // HANDLE APPROVAL
     builder
-      .addCase(downloadEventCertificate.pending, (state) => {
+      .addCase(handleEventApproval.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(downloadEventCertificate.fulfilled, (state) => {
+      .addCase(handleEventApproval.fulfilled, (state, action) => {
         state.isLoading = false;
+        const index = state.departmentEvents.findIndex(e => e.id === action.payload.id);
+        if (index !== -1) state.departmentEvents[index] = action.payload;
+      })
+      .addCase(handleEventApproval.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to process approval';
+      });
+
+    // PUBLISH EVENT
+    builder
+      .addCase(publishEvent.pending, (state) => {
+        state.isLoading = true;
         state.error = null;
       })
-      .addCase(downloadEventCertificate.rejected, (state, action) => {
+      .addCase(publishEvent.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload || 'Failed to download certificate';
+        const index = state.departmentEvents.findIndex(e => e.id === action.payload.id);
+        if (index !== -1) state.departmentEvents[index] = action.payload;
+      })
+      .addCase(publishEvent.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to publish event';
+      });
+
+    // MARK ATTENDANCE
+    builder
+      .addCase(markAttendance.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(markAttendance.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(markAttendance.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to mark attendance';
+      });
+
+    // CLOSE REGISTRATION
+    builder
+      .addCase(closeRegistration.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(closeRegistration.fulfilled, (state, action) => {
+        state.isLoading = false;
+        if (state.currentEvent?.id === action.payload.id) {
+          state.currentEvent = action.payload;
+        }
+      })
+      .addCase(closeRegistration.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to close registration';
       });
   },
 });
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 export const {
   clearError,
