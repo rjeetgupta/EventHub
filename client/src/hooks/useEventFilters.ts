@@ -1,11 +1,10 @@
 // hooks/useEventFilters.ts
 'use client';
 
-import { Department } from '@/lib/types/department.types';
 import { useState } from 'react';
 
 export interface EventFilters {
-  departments: Department[];
+  departments: string[]; // Changed from Department[] to string[]
   categories: string[];
   dateRange: string;
   mode: string;
@@ -19,7 +18,7 @@ export function useEventFilters() {
     mode: 'All'
   });
 
-  const setDepartments = (departments: Department[]) => {
+  const setDepartments = (departments: string[]) => {
     setFilters(prev => ({ ...prev, departments }));
   };
 
