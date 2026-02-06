@@ -1,395 +1,589 @@
-// 'use client';
+'use client';
 
-// import React, { useEffect, useCallback } from 'react';
-// import { useForm } from 'react-hook-form';
-// import { zodResolver } from '@hookform/resolvers/zod';
-// import {
-//   createEventSchema,
-//   updateEventSchema,
-//   type CreateEventInput,
-//   type UpdateEventInput,
-// } from '@/lib/validators/event.validators';
-// import { useFormErrors } from '@/hooks/useFormErrors';
-// import { EventService } from '@/services/eventService';
-// import { User, Event } from '@/types/api';
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogFooter,
-// } from '@/components/ui/dialog';
-// import { Button } from '@/components/ui/button';
-// import {
-//   Form,
-//   FormControl,
-//   FormDescription,
-//   FormField,
-//   FormItem,
-//   FormLabel,
-//   FormMessage,
-// } from '@/components/ui/form';
-// import { Input } from '@/components/ui/input';
-// import { Textarea } from '@/components/ui/textarea';
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from '@/components/ui/select';
-// import { Alert, AlertDescription } from '@/components/ui/alert';
-// import { AlertCircle } from 'lucide-react';
+import React from 'react';
+import { UseFormReturn } from 'react-hook-form';
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { CreateEventFormData } from '@/lib/schema/event.schema';
+import { EventMode } from '@/lib/types/common.types';
+import { Button } from '@/components/ui/button';
 
-// interface EventFormProps {
-//   isOpen: boolean;
-//   onClose: () => void;
-//   onSuccess?: (event: Event) => void;
-//   currentUser: User;
-//   existingEvent?: Event;
-// }
+interface Department {
+  id: string;
+  name: string;
+  code: string;
+}
 
-// export function EventForm({
-//   isOpen,
-//   onClose,
-//   onSuccess,
-//   currentUser,
-//   existingEvent,
-// }: EventFormProps) {
-//   const { errors, setGeneralError, clearAllErrors, handleZodError } = useFormErrors();
-//   const isEdit = !!existingEvent;
-//   const schema = isEdit ? updateEventSchema : createEventSchema;
+interface EventFormFieldsProps {
+  form: UseFormReturn<CreateEventFormData>;
+  step: 'basic' | 'details' | 'settings' | 'all';
+  departments?: Department[];
+  isProcessing?: boolean;
+}
 
-//   const form = useForm<CreateEventInput | UpdateEventInput>({
-//     resolver: zodResolver(schema),
-//     defaultValues: existingEvent
-//       ? {
-//           title: existingEvent.title,
-//           description: existingEvent.description,
-//           date: new Date(existingEvent.date).toISOString().split('T')[0],
-//           startTime: existingEvent.startTime,
-//           endTime: existingEvent.endTime,
-//           capacity: existingEvent.maxCapacity,
-//           mode: existingEvent.mode as 'Online' | 'Offline' | 'Hybrid',
-//           registrationDeadline: new Date(existingEvent.registrationDeadline)
-//             .toISOString()
-//             .split('T')[0],
-//           location: existingEvent.location,
-//         }
-//       : {
-//           title: '',
-//           description: '',
-//           date: '',
-//           startTime: '',
-//           endTime: '',
-//           capacity: 0,
-//           mode: 'Online',
-//           registrationDeadline: '',
-//           location: '',
-//         },
-//   });
+// Event categories constant
+export const EVENT_CATEGORIES = [
+  'Technical',
+  'Cultural',
+  'Sports',
+  'Workshop',
+  'Seminar',
+  'Hackathon',
+  'Competition',
+  'Social',
+  'Other',
+] as const;
 
-//   const [isProcessing, setIsProcessing] = React.useState(false);
+export function EventFormFields({
+  form,
+  step,
+  departments = [],
+  isProcessing = false,
+}: EventFormFieldsProps) {
+  const watchMode = form.watch('mode');
 
-//   // Reset form when dialog opens
-//   useEffect(() => {
-//     if (isOpen) {
-//       clearAllErrors();
-//       if (!isEdit) {
-//         form.reset();
-//       }
-//     }
-//   }, [isOpen, clearAllErrors, form, isEdit]);
+  // STEP 1: Basic Info - Title, Description, Category
+  if (step === 'basic') {
+    return (
+      <div className="space-y-6">
+        {/* Title */}
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Title *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter event title"
+                  {...field}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>
+                Minimum 3 characters, maximum 200 characters
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-//   // Handle form submission
-//   const onSubmit = useCallback(
-//     async (data: CreateEventInput | UpdateEventInput) => {
-//       setIsProcessing(true);
-//       clearAllErrors();
+        {/* Description */}
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description *</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Describe your event..."
+                  rows={6}
+                  {...field}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500 resize-none"
+                />
+              </FormControl>
+              <FormDescription>
+                Minimum 10 characters, maximum 2000 characters
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-//       try {
-//         let result;
+        {/* Category */}
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category *</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+                disabled={isProcessing}
+              >
+                <FormControl>
+                  <SelectTrigger className="border-orange-500/20 focus:ring-orange-500">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {EVENT_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    );
+  }
 
-//         if (isEdit && existingEvent) {
-//           result = await EventService.updateEvent(
-//             existingEvent.id,
-//             data as UpdateEventInput,
-//             currentUser,
-//             existingEvent.createdBy
-//           );
-//         } else {
-//           result = await EventService.createEvent(
-//             data as CreateEventInput,
-//             currentUser
-//           );
-//         }
+  // STEP 2: Event Details - Date, Time, Mode, Venue/Link
+  if (step === 'details') {
+    return (
+      <div className="space-y-6">
+        {/* Date & Time Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Event Date *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    {...field}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>Must be in the future</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-//         if (result.success && result.data) {
-//           onSuccess?.(result.data);
-//           form.reset();
-//           onClose();
-//         } else if (result.errors) {
-//           // Field-level errors from service
-//           Object.entries(result.errors).forEach(([field, message]) => {
-//             form.setError(field as any, { message: String(message) });
-//           });
-//           if (result.message) {
-//             setGeneralError(result.message);
-//           }
-//         } else {
-//           setGeneralError(result.message || `Failed to ${isEdit ? 'update' : 'create'} event`);
-//         }
-//       } catch (error) {
-//         if (error instanceof Error) {
-//           // Check if it's a Zod error by looking for the shape
-//           if ('errors' in error) {
-//             handleZodError(error as any);
-//           } else {
-//             setGeneralError(error.message);
-//           }
-//         } else {
-//           setGeneralError(`Failed to ${isEdit ? 'update' : 'create'} event`);
-//         }
-//       } finally {
-//         setIsProcessing(false);
-//       }
-//     },
-//     [isEdit, existingEvent, currentUser, clearAllErrors, setGeneralError, handleZodError, onSuccess, form, onClose]
-//   );
+          <FormField
+            control={form.control}
+            name="time"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Event Time *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="time"
+                    {...field}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>Format: HH:MM (24-hour)</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-//   return (
-//     <Dialog open={isOpen} onOpenChange={onClose}>
-//       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-//         <DialogHeader>
-//           <DialogTitle>{isEdit ? 'Edit Event' : 'Create New Event'}</DialogTitle>
-//         </DialogHeader>
+        {/* Event Mode */}
+        <FormField
+          control={form.control}
+          name="mode"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Mode *</FormLabel>
+              <div className="flex gap-3">
+                {Object.values(EventMode).map((mode) => (
+                  <Button
+                    key={mode}
+                    type="button"
+                    variant={field.value === mode ? 'default' : 'outline'}
+                    onClick={() => field.onChange(mode)}
+                    disabled={isProcessing}
+                    className={
+                      field.value === mode
+                        ? 'bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
+                        : 'border-orange-500/30 hover:bg-orange-500/10'
+                    }
+                  >
+                    {mode}
+                  </Button>
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-//         {/* Error Alert */}
-//         {errors.generalError && (
-//           <Alert variant="destructive">
-//             <AlertCircle className="h-4 w-4" />
-//             <AlertDescription>{errors.generalError}</AlertDescription>
-//           </Alert>
-//         )}
+        {/* Venue (for OFFLINE or HYBRID) */}
+        {(watchMode === EventMode.OFFLINE || watchMode === EventMode.HYBRID) && (
+          <FormField
+            control={form.control}
+            name="venue"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Venue *</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter venue location"
+                    {...field}
+                    value={field.value || ''}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Required for offline and hybrid events
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
-//         <Form {...form}>
-//           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-//             {/* Title */}
-//             <FormField
-//               control={form.control}
-//               name="title"
-//               render={({ field }) => (
-//                 <FormItem>
-//                   <FormLabel>Event Title *</FormLabel>
-//                   <FormControl>
-//                     <Input
-//                       placeholder="Enter event title"
-//                       {...field}
-//                       disabled={isProcessing}
-//                     />
-//                   </FormControl>
-//                   <FormMessage />
-//                 </FormItem>
-//               )}
-//             />
+        {/* Link (for ONLINE or HYBRID) */}
+        {(watchMode === EventMode.ONLINE || watchMode === EventMode.HYBRID) && (
+          <FormField
+            control={form.control}
+            name="link"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Meeting Link {watchMode === EventMode.ONLINE ? '*' : ''}
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="https://meet.google.com/..."
+                    {...field}
+                    value={field.value || ''}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>
+                  {watchMode === EventMode.ONLINE
+                    ? 'Required for online events'
+                    : 'Required for hybrid events'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+      </div>
+    );
+  }
 
-//             {/* Description */}
-//             <FormField
-//               control={form.control}
-//               name="description"
-//               render={({ field }) => (
-//                 <FormItem>
-//                   <FormLabel>Description *</FormLabel>
-//                   <FormControl>
-//                     <Textarea
-//                       placeholder="Enter event description"
-//                       rows={4}
-//                       {...field}
-//                       disabled={isProcessing}
-//                       className="resize-none"
-//                     />
-//                   </FormControl>
-//                   <FormMessage />
-//                 </FormItem>
-//               )}
-//             />
+  // STEP 3: Settings - Registration Deadline & Max Capacity
+  if (step === 'settings') {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="registrationDeadline"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Registration Deadline *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    {...field}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>Must be before event date</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-//             {/* Date & Time Row */}
-//             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-//               <FormField
-//                 control={form.control}
-//                 name="date"
-//                 render={({ field }) => (
-//                   <FormItem>
-//                     <FormLabel>Event Date *</FormLabel>
-//                     <FormControl>
-//                       <Input
-//                         type="date"
-//                         {...field}
-//                         disabled={isProcessing}
-//                       />
-//                     </FormControl>
-//                     <FormMessage />
-//                   </FormItem>
-//                 )}
-//               />
+          <FormField
+            control={form.control}
+            name="maxCapacity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Maximum Capacity *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 100"
+                    {...field}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      field.onChange(value === '' ? 0 : parseInt(value, 10));
+                    }}
+                    disabled={isProcessing}
+                    className="border-orange-500/20 focus-visible:ring-orange-500"
+                  />
+                </FormControl>
+                <FormDescription>Maximum: 10,000 participants</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+    );
+  }
 
-//               <FormField
-//                 control={form.control}
-//                 name="startTime"
-//                 render={({ field }) => (
-//                   <FormItem>
-//                     <FormLabel>Start Time *</FormLabel>
-//                     <FormControl>
-//                       <Input
-//                         type="time"
-//                         {...field}
-//                         disabled={isProcessing}
-//                       />
-//                     </FormControl>
-//                     <FormMessage />
-//                   </FormItem>
-//                 )}
-//               />
+  // ALL fields (for dialog/single page form)
+  return (
+    <div className="space-y-6">
+      {/* Title */}
+      <FormField
+        control={form.control}
+        name="title"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Event Title *</FormLabel>
+            <FormControl>
+              <Input
+                placeholder="Enter event title"
+                {...field}
+                disabled={isProcessing}
+                className="border-orange-500/20 focus-visible:ring-orange-500"
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-//               <FormField
-//                 control={form.control}
-//                 name="endTime"
-//                 render={({ field }) => (
-//                   <FormItem>
-//                     <FormLabel>End Time *</FormLabel>
-//                     <FormControl>
-//                       <Input
-//                         type="time"
-//                         {...field}
-//                         disabled={isProcessing}
-//                       />
-//                     </FormControl>
-//                     <FormMessage />
-//                   </FormItem>
-//                 )}
-//               />
-//             </div>
+      {/* Description */}
+      <FormField
+        control={form.control}
+        name="description"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Description *</FormLabel>
+            <FormControl>
+              <Textarea
+                placeholder="Describe your event..."
+                rows={6}
+                {...field}
+                disabled={isProcessing}
+                className="border-orange-500/20 focus-visible:ring-orange-500 resize-none"
+              />
+            </FormControl>
+            <FormDescription>
+              Minimum 10 characters, maximum 2000 characters
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-//             {/* Mode & Capacity Row */}
-//             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//               <FormField
-//                 control={form.control}
-//                 name="mode"
-//                 render={({ field }) => (
-//                   <FormItem>
-//                     <FormLabel>Event Mode *</FormLabel>
-//                     <Select
-//                       onValueChange={field.onChange}
-//                       defaultValue={field.value}
-//                       disabled={isProcessing}
-//                     >
-//                       <FormControl>
-//                         <SelectTrigger>
-//                           <SelectValue placeholder="Select mode" />
-//                         </SelectTrigger>
-//                       </FormControl>
-//                       <SelectContent>
-//                         <SelectItem value="Online">Online</SelectItem>
-//                         <SelectItem value="Offline">Offline</SelectItem>
-//                         <SelectItem value="Hybrid">Hybrid</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                     <FormMessage />
-//                   </FormItem>
-//                 )}
-//               />
+      {/* Category */}
+      <FormField
+        control={form.control}
+        name="category"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Category *</FormLabel>
+            <Select
+              onValueChange={field.onChange}
+              defaultValue={field.value}
+              disabled={isProcessing}
+            >
+              <FormControl>
+                <SelectTrigger className="border-orange-500/20 focus:ring-orange-500">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {EVENT_CATEGORIES.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-//               <FormField
-//                 control={form.control}
-//                 name="capacity"
-//                 render={({ field }) => (
-//                   <FormItem>
-//                     <FormLabel>Max Capacity *</FormLabel>
-//                     <FormControl>
-//                       <Input
-//                         type="number"
-//                         placeholder="Enter max capacity"
-//                         {...field}
-//                         onChange={(e) => field.onChange(parseInt(e.target.value))}
-//                         disabled={isProcessing}
-//                       />
-//                     </FormControl>
-//                     <FormMessage />
-//                   </FormItem>
-//                 )}
-//               />
-//             </div>
+      {/* Date & Time Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="date"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Date *</FormLabel>
+              <FormControl>
+                <Input
+                  type="date"
+                  {...field}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>Must be in the future</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-//             {/* Location */}
-//             <FormField
-//               control={form.control}
-//               name="location"
-//               render={({ field }) => (
-//                 <FormItem>
-//                   <FormLabel>Location</FormLabel>
-//                   <FormControl>
-//                     <Input
-//                       placeholder="Enter location (for offline/hybrid events)"
-//                       {...field}
-//                       disabled={isProcessing}
-//                     />
-//                   </FormControl>
-//                   <FormDescription>
-//                     Required for offline and hybrid events
-//                   </FormDescription>
-//                   <FormMessage />
-//                 </FormItem>
-//               )}
-//             />
+        <FormField
+          control={form.control}
+          name="time"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Time *</FormLabel>
+              <FormControl>
+                <Input
+                  type="time"
+                  {...field}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>Format: HH:MM (24-hour)</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
 
-//             {/* Registration Deadline */}
-//             <FormField
-//               control={form.control}
-//               name="registrationDeadline"
-//               render={({ field }) => (
-//                 <FormItem>
-//                   <FormLabel>Registration Deadline *</FormLabel>
-//                   <FormControl>
-//                     <Input
-//                       type="date"
-//                       {...field}
-//                       disabled={isProcessing}
-//                     />
-//                   </FormControl>
-//                   <FormDescription>
-//                     Must be before event date
-//                   </FormDescription>
-//                   <FormMessage />
-//                 </FormItem>
-//               )}
-//             />
+      {/* Event Mode */}
+      <FormField
+        control={form.control}
+        name="mode"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Event Mode *</FormLabel>
+            <div className="flex gap-3">
+              {Object.values(EventMode).map((mode) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  variant={field.value === mode ? 'default' : 'outline'}
+                  onClick={() => field.onChange(mode)}
+                  disabled={isProcessing}
+                  className={
+                    field.value === mode
+                      ? 'bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
+                      : 'border-orange-500/30 hover:bg-orange-500/10'
+                  }
+                >
+                  {mode}
+                </Button>
+              ))}
+            </div>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-//             {/* Dialog Footer */}
-//             <DialogFooter className="mt-6">
-//               <Button
-//                 type="button"
-//                 variant="outline"
-//                 onClick={onClose}
-//                 disabled={isProcessing}
-//               >
-//                 Cancel
-//               </Button>
-//               <Button
-//                 type="submit"
-//                 disabled={isProcessing}
-//                 className="bg-linear-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
-//               >
-//                 {isProcessing
-//                   ? 'Processing...'
-//                   : isEdit
-//                     ? 'Update Event'
-//                     : 'Create Event'}
-//               </Button>
-//             </DialogFooter>
-//           </form>
-//         </Form>
-//       </DialogContent>
-//     </Dialog>
-//   );
-// }
+      {/* Venue (for OFFLINE or HYBRID) */}
+      {(watchMode === EventMode.OFFLINE || watchMode === EventMode.HYBRID) && (
+        <FormField
+          control={form.control}
+          name="venue"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Venue *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter venue location"
+                  {...field}
+                  value={field.value || ''}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>
+                Required for offline and hybrid events
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* Link (for ONLINE or HYBRID) */}
+      {(watchMode === EventMode.ONLINE || watchMode === EventMode.HYBRID) && (
+        <FormField
+          control={form.control}
+          name="link"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                Meeting Link {watchMode === EventMode.ONLINE ? '*' : ''}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="https://meet.google.com/..."
+                  {...field}
+                  value={field.value || ''}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>
+                {watchMode === EventMode.ONLINE
+                  ? 'Required for online events'
+                  : 'Required for hybrid events'}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* Registration Deadline & Max Capacity Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="registrationDeadline"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Registration Deadline *</FormLabel>
+              <FormControl>
+                <Input
+                  type="date"
+                  {...field}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>Must be before event date</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="maxCapacity"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Maximum Capacity *</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  placeholder="e.g., 100"
+                  {...field}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    field.onChange(value === '' ? 0 : parseInt(value, 10));
+                  }}
+                  disabled={isProcessing}
+                  className="border-orange-500/20 focus-visible:ring-orange-500"
+                />
+              </FormControl>
+              <FormDescription>Maximum: 10,000 participants</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    </div>
+  );
+}
