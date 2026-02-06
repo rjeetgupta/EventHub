@@ -1,7 +1,6 @@
-// components/events/EventFilters.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Filter, ChevronDown, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,16 +23,6 @@ interface EventFiltersProps {
   onModeChange: (mode: string) => void;
   onReset: () => void;
 }
-
-// const DEPARTMENTS = [
-//   'Computer Science',
-//   'Electronics',
-//   'Mechanical',
-//   'Civil',
-//   'MBA',
-//   'Cultural Committee',
-//   'Sports Committee'
-// ];
 
 const CATEGORIES = [
   'Technical',
@@ -64,36 +53,39 @@ export function EventFilters({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const dispatch = useAppDispatch();
-  const {departments} = useAppSelector((state) => state.departments)
+  const { departments } = useAppSelector((state) => state.departments)
 
-  const toggleDepartment = (deptId: string) => {
-    const newDepts = filters.departments.includes(deptId)
-      ? filters.departments.filter(d => d !== deptId)
-      : [...filters.departments, deptId];
-  
-    onDepartmentChange(newDepts);
-  };  
+  const toggleDepartment = (deptId: string, checked: boolean) => {
+    onDepartmentChange(
+      checked
+        ? [...filters.departments, deptId]
+        : filters.departments.filter((d) => d !== deptId)
+    );
+  };
 
-  const toggleCategory = (cat: string) => {
-    const newCats = filters.categories.includes(cat)
-      ? filters.categories.filter(c => c !== cat)
-      : [...filters.categories, cat];
-    onCategoryChange(newCats);
+  const toggleCategory = (cat: string, checked: boolean) => {
+    onCategoryChange(
+      checked
+        ? [...filters.categories, cat]
+        : filters.categories.filter((c) => c !== cat)
+    );
   };
 
   const activeFilterCount = 
     filters.departments.length + 
     filters.categories.length + 
-    (filters.dateRange !== 'all' ? 1 : 0) + 
+    (filters.dateRange ? 1 : 0) + 
     (filters.mode !== 'All' ? 1 : 0);
   
   useEffect(() => {
     dispatch(fetchDepartments())
   }, [dispatch])
 
-  const departmentMap = Object.fromEntries(
-    departments.map(d => [d.id, d.name])
-  );
+  const departmentMap = useMemo(() => {
+    return Object.fromEntries(
+      (departments ?? []).map(d => [d.id, d.name])
+    );
+  }, [departments]);
   
 
   return (
@@ -127,7 +119,9 @@ export function EventFilters({
                       <Checkbox
                         id={`dept-${dept.id}`}
                         checked={filters.departments.includes(dept.id)}
-                        onCheckedChange={() => toggleDepartment(dept.id)}
+                        onCheckedChange={(checked) =>
+                          toggleDepartment(dept.id, Boolean(checked))
+                        }                     
                       />
                       <Label
                         htmlFor={`dept-${dept.id}`}
@@ -168,7 +162,9 @@ export function EventFilters({
                       <Checkbox
                         id={`cat-${cat}`}
                         checked={filters.categories.includes(cat)}
-                        onCheckedChange={() => toggleCategory(cat)}
+                        onCheckedChange={(checked) =>
+                          toggleCategory(cat, Boolean(checked))
+                        }
                       />
                       <Label
                         htmlFor={`cat-${cat}`}
@@ -269,7 +265,7 @@ export function EventFilters({
                 key={dept}
                 variant="outline"
                 className="border-orange-500/30 text-orange-500 cursor-pointer hover:bg-orange-500/10"
-                onClick={() => toggleDepartment(dept)}
+                onClick={() => toggleDepartment(dept, false)}
               >
                  {departmentMap[dept] ?? dept}
                 <X className="w-3 h-3 ml-1" />
@@ -280,7 +276,7 @@ export function EventFilters({
                 key={cat}
                 variant="outline"
                 className="border-blue-500/30 text-blue-500 cursor-pointer hover:bg-blue-500/10"
-                onClick={() => toggleCategory(cat)}
+                onClick={() => toggleCategory(cat, false)}
               >
                 {cat}
                 <X className="w-3 h-3 ml-1" />
