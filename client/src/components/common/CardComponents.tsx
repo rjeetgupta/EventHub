@@ -16,6 +16,7 @@ import {
   Power,
   Download,
   Trophy,
+  LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -335,25 +336,26 @@ interface StatsCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   iconColor?: string;
   borderColor?: string;
-  trend?: 'up' | 'down';
-  className?: string;
+  onClick?: () => void;
 }
 
-export const StatsCard: React.FC<StatsCardProps> = ({
+export function StatsCard({
   title,
   value,
   subtitle,
   icon: Icon,
   iconColor = 'text-orange-500',
   borderColor = 'border-l-orange-500',
-  trend,
-  className = '',
-}) => {
+  onClick,
+}: StatsCardProps) {
   return (
-    <Card className={`border-l-4 ${borderColor} ${className}`}>
+    <Card 
+      className={`border-l-4 ${borderColor} ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${iconColor}`} />
@@ -366,7 +368,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
       </CardContent>
     </Card>
   );
-};
+}
 
 // EMPTY STATE
 
@@ -404,3 +406,40 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </div>
   );
 };
+
+interface QuickActionCardProps {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  iconColor?: string;
+  borderColor?: string;
+  onClick?: () => void;
+}
+
+export function QuickActionCard({
+  title,
+  description,
+  icon: Icon,
+  iconColor = 'text-orange-500',
+  borderColor = 'border-orange-500/20 hover:border-orange-500/40',
+  onClick,
+}: QuickActionCardProps) {
+  return (
+    <Card 
+      className={`${borderColor} cursor-pointer transition-all`}
+      onClick={onClick}
+    >
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-4">
+          <div className={`p-3 bg-${iconColor.split('-')[1]}-500/10 rounded-lg`}>
+            <Icon className={`w-6 h-6 ${iconColor}`} />
+          </div>
+          <div>
+            <p className="font-semibold">{title}</p>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
