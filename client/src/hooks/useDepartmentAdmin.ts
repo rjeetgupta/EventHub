@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store/hook';
 
 export function useDepartmentAdmin(departmentId: string) {
+  console.log("department id while accepting : ", departmentId)
   const dispatch = useAppDispatch();
   const {
     currentDepartment,
@@ -34,6 +35,7 @@ export function useDepartmentAdmin(departmentId: string) {
   // Fetch department data on mount
   useEffect(() => {
     if (departmentId) {
+      console.log("DEPARTMENT ID : ", departmentId)
       dispatch(fetchDepartmentById(departmentId));
       dispatch(fetchGroupAdmins({ departmentId }));
       dispatch(fetchAvailablePermissions());
