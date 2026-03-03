@@ -26,147 +26,151 @@ import {
   markAttendanceSchema,
   eventIdSchema,
   eventFiltersSchema,
+  departmentEventsQuerySchema,
+  myEventsQuerySchema,
 } from "../validators/event.validator";
 import { isAllowedToDo } from "../middlewares/isAllowed.middleware";
 import { UserRole } from "../types/common.types";
 
 const router = Router();
 
+// ============================================================================
+// SPECIFIC ROUTES (must come BEFORE /:id to avoid being caught by param)
+// ============================================================================
 
-router.route("/").get(validate(eventFiltersSchema), getEvents);
-router.route("/:id").get(validate(eventIdSchema), getEventById);
-router
-  .route("/my-events")
-  .get(verifyJWT, isAllowedToDo(UserRole.STUDENT), getMyEvents);
+router.get(
+  "/my-events",
+  verifyJWT,
+  isAllowedToDo(UserRole.STUDENT),
+  validate(myEventsQuerySchema),
+  getMyEvents
+);
 
-router
-  .route("/:id/register")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.STUDENT),
-    validate(eventIdSchema),
-    registerForEvent
-  );
+router.get(
+  "/department",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(departmentEventsQuerySchema),
+  getDepartmentEvents
+);
 
-router
-  .route("/:id/register")
-  .delete(
-    verifyJWT,
-    isAllowedToDo(UserRole.STUDENT),
-    validate(eventIdSchema),
-    cancelRegistration
-  );
+// ============================================================================
+// PUBLIC ROUTES
+// ============================================================================
 
-router
-  .route("/:id/certificate")
-  .get(
-    verifyJWT,
-    isAllowedToDo(UserRole.STUDENT),
-    validate(eventIdSchema),
-    downloadCertificate
-  );
+router.get("/", validate(eventFiltersSchema), getEvents);
+router.get("/:id", validate(eventIdSchema), getEventById);
 
-// GROUP ADMIN & DEPARTMENT ADMIN ROUTES
+// ============================================================================
+// EVENT MANAGEMENT (GROUP ADMIN / DEPARTMENT ADMIN)
+// ============================================================================
 
-// Create event
-router
-  .route("/")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(createEventSchema),
-    createEvent
-  );
+router.post(
+  "/",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(createEventSchema),
+  createEvent
+);
 
-// Update event
-router
-  .route("/:id")
-  .put(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(updateEventSchema),
-    updateEvent
-  );
+router.put(
+  "/:id",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(updateEventSchema),
+  updateEvent
+);
 
-// Delete event
-router
-  .route("/:id")
-  .delete(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(eventIdSchema),
-    deleteEvent
-  );
+router.delete(
+  "/:id",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(eventIdSchema),
+  deleteEvent
+);
 
-// Submit event for approval
-router
-  .route("/:id/submit")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN),
-    validate(eventIdSchema),
-    submitForApproval
-  );
+// ============================================================================
+// EVENT WORKFLOW
+// ============================================================================
 
-// Get department events
-router
-  .route("/department/events")
-  .get(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    getDepartmentEvents
-  );
+router.post(
+  "/:id/submit",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN),
+  validate(eventIdSchema),
+  submitForApproval
+);
 
-// Get event registrations
-router
-  .route("/:id/registrations")
-  .get(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(eventIdSchema),
-    getEventRegistrations
-  );
+router.post(
+  "/:id/approval",
+  verifyJWT,
+  isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
+  validate(approvalSchema),
+  handleApproval
+);
 
-// Mark attendance
-router
-  .route("/:id/attendance")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(markAttendanceSchema),
-    markAttendance
-  );
+router.post(
+  "/:id/publish",
+  verifyJWT,
+  isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
+  validate(eventIdSchema),
+  publishEvent
+);
 
-// Close registration
-router
-  .route("/:id/close-registration")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(eventIdSchema),
-    closeRegistration
-  );
+// ============================================================================
+// STUDENT REGISTRATION
+// ============================================================================
 
-// DEPARTMENT ADMIN ONLY ROUTES
+router.post(
+  "/:id/register",
+  verifyJWT,
+  isAllowedToDo(UserRole.STUDENT),
+  validate(eventIdSchema),
+  registerForEvent
+);
 
-// Approve or reject event
-router
-  .route("/:id/approval")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
-    validate(approvalSchema),
-    handleApproval
-  );
+router.delete(
+  "/:id/register",
+  verifyJWT,
+  isAllowedToDo(UserRole.STUDENT),
+  validate(eventIdSchema),
+  cancelRegistration
+);
 
-// Publish event
-router
-  .route("/:id/publish")
-  .post(
-    verifyJWT,
-    isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
-    validate(eventIdSchema),
-    publishEvent
-  );
+router.get(
+  "/:id/certificate",
+  verifyJWT,
+  isAllowedToDo(UserRole.STUDENT),
+  validate(eventIdSchema),
+  downloadCertificate
+);
+
+// ============================================================================
+// ATTENDANCE & REGISTRATION MANAGEMENT
+// ============================================================================
+
+router.get(
+  "/:id/registrations",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(eventIdSchema),
+  getEventRegistrations
+);
+
+router.post(
+  "/:id/attendance",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(markAttendanceSchema),
+  markAttendance
+);
+
+router.post(
+  "/:id/close-registration",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(eventIdSchema),
+  closeRegistration
+);
 
 export default router;
