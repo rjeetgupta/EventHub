@@ -1,46 +1,56 @@
 import { Request, Response, NextFunction } from "express";
-import { z, ZodObject, ZodEffects } from "zod"; // ✅ Import ZodEffects correctly
+import { ZodSchema } from "zod";
 import ApiError from "../utils/ApiError";
 import asyncHandler from "../utils/asyncHandler";
 
-// Extend Request type so TypeScript knows about .validated
 declare global {
   namespace Express {
     interface Request {
-      validated?: any;
+      validated: {
+        body: Record<string, any>;
+        params: Record<string, any>;
+        query: Record<string, any>;
+      };
     }
   }
 }
 
-/**
- * Validates request data against a Zod schema.
- * Attaches validated & parsed data to req.validated
- */
-export const validate = (
-  schema: ZodObject<any> | ZodEffects<any> // ✅ Fix type definition
-) =>
+export const validate = (schema: ZodSchema) =>
   asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
-    const input = {
+    const result = await schema.safeParseAsync({
       body: req.body,
-      query: req.query,
       params: req.params,
-    };
-
-    const result = await schema.safeParseAsync(input);
+      query: req.query,
+    });
 
     if (!result.success) {
-      // Clean, frontend-friendly error format
-      const formattedErrors = result.error.issues.map((issue: any) => ({
-        field: issue.path.join(".") || "root",
-        message: issue.message,
-        code: issue.code,
-      }));
-
-      throw new ApiError(400, "Validation failed", formattedErrors);
+      throw new ApiError(
+        400,
+        "Validation failed",
+        result.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        }))
+      );
     }
 
-    // Attach validated data
-    req.validated = result.data;
+    // Initialize validated if not present
+    if (!req.validated) {
+      req.validated = { body: {}, params: {}, query: {} };
+    }
+
+    // Merge validated data (supports chained validate() calls)
+    const data = result.data as {
+      body?: Record<string, unknown>;
+      params?: Record<string, unknown>;
+      query?: Record<string, unknown>;
+    };
+
+    if (data.body !== undefined) req.validated.body = data.body;
+    if (data.params !== undefined) {
+      req.validated.params = { ...req.validated.params, ...data.params };
+    }
+    if (data.query !== undefined) req.validated.query = data.query;
 
     next();
   });
