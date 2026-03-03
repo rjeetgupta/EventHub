@@ -25,14 +25,14 @@ export default function LoginPage() {
     const dispatch = useAppDispatch();
     const router = useRouter();
 
-    const { isLoading, error, isAuthenticated, } = useAppSelector((state) => state.auth)
-
+    const { user, isLoading, error, isAuthenticated, } = useAppSelector((state) => state.auth)
+    console.log("AFTER LOGGIN : ", user)
     // Redirect when authenticated
-    useEffect(() => {
-        if (isAuthenticated) {
-            router.push("/events");
-        }
-    }, [isAuthenticated, router]);
+    // useEffect(() => {
+    //     if (isAuthenticated) {
+    //         router.push("/events");
+    //     }
+    // }, [isAuthenticated, router]);
 
     // Cleanup error on unmount
     useEffect(() => {
@@ -54,15 +54,12 @@ export default function LoginPage() {
     const handleLogin = async (data: LoginRequest) => {
         clearError()
         try {
-            const result = await dispatch(loginUser(data)).unwrap()
-            if (loginUser.fulfilled.match(result)) {
-                toast.success("Login successful")
-                router.push(roleRedirectMap[result.payload.user.role])
-                console.log("AFTER LOGGIN : ", result.payload.user.role)
-            }
+            const payload = await dispatch(loginUser(data)).unwrap()
+            toast.success("Login successful");
+            const role = payload.user.role;
+            router.push(roleRedirectMap[role]);
         } catch(error: any) {
             // error handled in store
-            console.log(error)
             toast.error(error || "Login failed");
         }
     };
