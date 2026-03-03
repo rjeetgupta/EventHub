@@ -39,13 +39,14 @@ export default function RegisterPage() {
   const handleRegister = async (data: RegisterRequest) => {
     clearError();
     try {
-      const result = dispatch(registerUser(data));
+      const result = await dispatch(registerUser(data)).unwrap();
       if (registerUser.fulfilled.match(result)) {
         toast.success("Registration successful")
         router.replace("/login")
       }
-    } catch {
+    } catch(error: any) {
       // error handled in store
+      toast.error(error || "Registration failed");
     }
   };
 
