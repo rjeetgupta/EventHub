@@ -37,7 +37,7 @@ export default function LoginPage() {
     // Cleanup error on unmount
     useEffect(() => {
         return () => {
-            clearError();
+            dispatch(clearError());
         };
     }, [clearError]);
 
@@ -54,16 +54,16 @@ export default function LoginPage() {
     const handleLogin = async (data: LoginRequest) => {
         clearError()
         try {
-            const result = await dispatch(loginUser(data))
+            const result = await dispatch(loginUser(data)).unwrap()
             if (loginUser.fulfilled.match(result)) {
                 toast.success("Login successful")
                 router.push(roleRedirectMap[result.payload.user.role])
                 console.log("AFTER LOGGIN : ", result.payload.user.role)
-            } else {
-                toast.error("Login failed");
             }
-        } catch {
+        } catch(error: any) {
             // error handled in store
+            console.log(error)
+            toast.error(error || "Login failed");
         }
     };
 
@@ -80,12 +80,12 @@ export default function LoginPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                    {error && (
+                    {/* {error && (
                         <div className="flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-600">
                             <AlertCircle className="h-4 w-4" />
                             {error}
                         </div>
-                    )}
+                    )} */}
 
                     <LoginForm
                         onSubmit={handleLogin}
