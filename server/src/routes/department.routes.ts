@@ -16,160 +16,114 @@ import { verifyJWT } from "../middlewares/auth.middleware";
 import { isAllowedToDo } from "../middlewares/isAllowed.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import {
-  createDepartmentSchema,
-  updateDepartmentSchema,
-  departmentIdParamSchema,
-  assignGroupAdminSchema,
-  updateGroupAdminPermissionsSchema,
-  removeGroupAdminSchema,
-  departmentFiltersSchema,
-  groupAdminFiltersSchema,
-  analyticsFiltersSchema,
+  CreateDepartmentSchema,
+  UpdateDepartmentSchema,
+  AssignGroupAdminSchema,
+  UpdateGroupAdminPermissionsSchema,
+  DepartmentFiltersSchema,
+  GroupAdminFiltersSchema,
+  DepartmentAnalyticsFiltersSchema,
+  departmentIdSchema,
+  groupAdminIdSchema,
 } from "../validators/department.validator";
 import { UserRole } from "../types/common.types";
 
 const router = Router();
 
+// ============================================================================
+// SPECIFIC ROUTES (must come BEFORE /:id to avoid being caught by param)
+// ============================================================================
 
-/**
- * @route   GET /api/v1/departments
- * @desc    Get all departments
- * @access  Public
- */
+router.get("/permissions", verifyJWT, getAvailablePermissions);
+
+// ============================================================================
+// DEPARTMENT CRUD
+// ============================================================================
+
 router
   .route("/")
-  .get(validate(departmentFiltersSchema), getDepartments)
-
-  /**
-   * @route   POST /api/v1/departments
-   * @desc    Create new department
-   * @access  Super Admin only
-   */
+  .get(
+    validate(DepartmentFiltersSchema),
+    getDepartments
+  )
   .post(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN),
-    validate(createDepartmentSchema),
+    validate(CreateDepartmentSchema),
     createDepartment
   );
 
-/**
- * @route   GET /api/v1/departments/:id
- * @desc    Get department by ID
- * @access  Public
- */
 router
   .route("/:id")
-  .get(validate(departmentIdParamSchema), getDepartmentById)
-
-  /**
-   * @route   PUT /api/v1/departments/:id
-   * @desc    Update department
-   * @access  Super Admin, Department Admin (own department)
-   */
+  .get(
+    validate(departmentIdSchema),
+    getDepartmentById
+  )
   .put(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(updateDepartmentSchema),
+    validate(departmentIdSchema),
+    validate(UpdateDepartmentSchema),
     updateDepartment
   )
-
-  /**
-   * @route   DELETE /api/v1/departments/:id
-   * @desc    Delete department
-   * @access  Super Admin only
-   */
   .delete(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN),
-    validate(departmentIdParamSchema),
+    validate(departmentIdSchema),
     deleteDepartment
   );
 
 // ============================================================================
-// GROUP ADMIN ROUTES
+// ANALYTICS
 // ============================================================================
 
-/**
- * @route   GET /api/v1/departments/:id/group-admins
- * @desc    Get all group admins for department
- * @access  Department Admin, Super Admin
- */
+router.get(
+  "/:id/analytics",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(departmentIdSchema),
+  validate(DepartmentAnalyticsFiltersSchema),
+  getDepartmentAnalytics
+);
+
+// ============================================================================
+// GROUP ADMIN MANAGEMENT
+// ============================================================================
+
 router
   .route("/:id/group-admins")
   .get(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(groupAdminFiltersSchema),
+    validate(departmentIdSchema),
+    validate(GroupAdminFiltersSchema),
     getGroupAdmins
   )
-
-  /**
-   * @route   POST /api/v1/departments/:id/group-admins
-   * @desc    Assign user as group admin
-   * @access  Department Admin, Super Admin
-   */
   .post(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(assignGroupAdminSchema),
+    validate(departmentIdSchema),
+    validate(AssignGroupAdminSchema),
     assignGroupAdmin
   );
 
-/**
- * @route   PUT /api/v1/departments/:id/group-admins/:userId/permissions
- * @desc    Update group admin permissions
- * @access  Department Admin, Super Admin
- */
 router
-  .route("/:id/group-admins/:userId/permissions")
+  .route("/:departmentId/group-admins/:groupAdminId/permissions")
   .put(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(updateGroupAdminPermissionsSchema),
+    validate(groupAdminIdSchema),
+    validate(UpdateGroupAdminPermissionsSchema),
     updateGroupAdminPermissions
   );
 
-/**
- * @route   DELETE /api/v1/departments/:id/group-admins/:userId
- * @desc    Remove group admin
- * @access  Department Admin, Super Admin
- */
 router
-  .route("/:id/group-admins/:userId")
+  .route("/:departmentId/group-admins/:groupAdminId")
   .delete(
     verifyJWT,
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(removeGroupAdminSchema),
+    validate(groupAdminIdSchema),
     removeGroupAdmin
-  );
-
-// ============================================================================
-// PERMISSION ROUTES
-// ============================================================================
-
-/**
- * @route   GET /api/v1/departments/permissions
- * @desc    Get available permissions
- * @access  Authenticated
- */
-router.route("/permissions").get(verifyJWT, getAvailablePermissions);
-
-// ============================================================================
-// ANALYTICS ROUTES
-// ============================================================================
-
-/**
- * @route   GET /api/v1/departments/:id/analytics
- * @desc    Get department analytics
- * @access  Department Admin, Super Admin
- */
-router
-  .route("/:id/analytics")
-  .get(
-    verifyJWT,
-    isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
-    validate(analyticsFiltersSchema),
-    getDepartmentAnalytics
   );
 
 export default router;
