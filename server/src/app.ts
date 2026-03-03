@@ -33,18 +33,18 @@ app.use(cors({
  * Route Imports
  * All API routes are imported here
  */
-// import authRoutes from './routes/auth.routes.js';
-// import departmentRoutes from "./routes/department.routes.js";
-// import eventRoutes from "./routes/event.routes.js";
+import authRoutes from './routes/auth.routes.js';
+import departmentRoutes from "./routes/department.routes.js";
+import eventRoutes from "./routes/event.routes.js";
 
 
 /**
  * Route Registration
  * All routes prefixed with /api/v1
  */
-// app.use('/api/v1/auth', authRoutes);
-// app.use("/api/v1/departments", departmentRoutes);
-// app.use("/api/v1/events", eventRoutes)
+app.use('/api/v1/auth', authRoutes);
+app.use("/api/v1/departments", departmentRoutes);
+app.use("/api/v1/events", eventRoutes)
 
 /**
  * Health Check Endpoint
