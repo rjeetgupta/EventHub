@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/common/Navbar";
-import Footer from "@/components/common/Footer";
+import AppFrame from "./AppFrame";
 import { ThemeProvider } from "next-themes"
 import StoreProvider from "./storeProvider";
 import { Toaster } from "sonner";
@@ -32,12 +31,7 @@ export default function RootLayout({
         <html lang="en">
             <body className="min-h-screen flex flex-col">
                 <StoreProvider>
-                    <Navbar />
-                    <main className="grow container mx-auto px-4 py-8">
-                        {children}
-                    </main>
-
-                    <Footer />
+                    <AppFrame>{children}</AppFrame>
                 </StoreProvider>
                 <Toaster position="top-right" richColors />
             </body>
