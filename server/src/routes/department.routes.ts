@@ -9,12 +9,13 @@ import {
   assignGroupAdmin,
   updateGroupAdminPermissions,
   removeGroupAdmin,
+  toggleGroupAdminStatus,
   getAvailablePermissions,
   getDepartmentAnalytics,
-} from "../controllers/department.controller";
-import { verifyJWT } from "../middlewares/auth.middleware";
-import { isAllowedToDo } from "../middlewares/isAllowed.middleware";
-import { validate } from "../middlewares/validate.middleware";
+} from "../controllers/department.controller.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { isAllowedToDo } from "../middlewares/isAllowed.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
 import {
   CreateDepartmentSchema,
   UpdateDepartmentSchema,
@@ -25,8 +26,9 @@ import {
   DepartmentAnalyticsFiltersSchema,
   departmentIdSchema,
   groupAdminIdSchema,
-} from "../validators/department.validator";
-import { UserRole } from "../types/common.types";
+  ToggleStatusSchema,
+} from "../validators/department.validator.js";
+import { UserRole } from "../types/common.types.js";
 
 const router = Router();
 
@@ -124,6 +126,16 @@ router
     isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
     validate(groupAdminIdSchema),
     removeGroupAdmin
+  );
+
+router
+  .route("/:departmentId/group-admins/:groupAdminId/status")
+  .patch(
+    verifyJWT,
+    isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+    validate(groupAdminIdSchema),
+    validate(ToggleStatusSchema),
+    toggleGroupAdminStatus
   );
 
 export default router;

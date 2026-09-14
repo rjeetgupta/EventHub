@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { Permission as PermissionType } from "../types/common.types";
-import { prisma } from "../config/db";
-import { UserRole } from "../types/common.types";
-import ApiError from "../utils/ApiError";
-import asyncHandler from "../utils/asyncHandler";
+import { Permission as PermissionType } from "../types/common.types.js";
+import { prisma } from "../config/db.js";
+import { UserRole } from "../types/common.types.js";
+import ApiError from "../utils/ApiError.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 export const checkPermission = (permission: PermissionType) =>
   asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {

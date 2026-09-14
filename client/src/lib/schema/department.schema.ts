@@ -209,10 +209,10 @@ export type UpdateGroupAdminPermissionsRequest = z.infer<
 export const DepartmentsResponseSchema = z.object({
   data: z.array(DepartmentSchema),
   pagination: z.object({
-    total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
-    totalPages: z.number().int().nonnegative(),
     limit: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
   }),
 });
 

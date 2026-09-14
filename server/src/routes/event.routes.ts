@@ -9,6 +9,7 @@ import {
   handleApproval,
   publishEvent,
   getDepartmentEvents,
+  getAllEvents,
   registerForEvent,
   cancelRegistration,
   getMyEvents,
@@ -16,9 +17,9 @@ import {
   getEventRegistrations,
   closeRegistration,
   downloadCertificate,
-} from "../controllers/event.controller";
-import { verifyJWT } from "../middlewares/auth.middleware";
-import { validate } from "../middlewares/validate.middleware";
+} from "../controllers/event.controller.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
 import {
   createEventSchema,
   updateEventSchema,
@@ -28,9 +29,9 @@ import {
   eventFiltersSchema,
   departmentEventsQuerySchema,
   myEventsQuerySchema,
-} from "../validators/event.validator";
-import { isAllowedToDo } from "../middlewares/isAllowed.middleware";
-import { UserRole } from "../types/common.types";
+} from "../validators/event.validator.js";
+import { isAllowedToDo } from "../middlewares/isAllowed.middleware.js";
+import { UserRole } from "../types/common.types.js";
 
 const router = Router();
 
@@ -54,6 +55,13 @@ router.get(
   getDepartmentEvents
 );
 
+router.get(
+  "/admin/all",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN),
+  getAllEvents
+);
+
 // ============================================================================
 // PUBLIC ROUTES
 // ============================================================================
@@ -62,13 +70,13 @@ router.get("/", validate(eventFiltersSchema), getEvents);
 router.get("/:id", validate(eventIdSchema), getEventById);
 
 // ============================================================================
-// EVENT MANAGEMENT (GROUP ADMIN / DEPARTMENT ADMIN)
+// EVENT MANAGEMENT (GROUP ADMIN / DEPARTMENT ADMIN / SUPER ADMIN)
 // ============================================================================
 
 router.post(
   "/",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(createEventSchema),
   createEvent
 );
@@ -76,7 +84,7 @@ router.post(
 router.put(
   "/:id",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(updateEventSchema),
   updateEvent
 );
@@ -84,7 +92,7 @@ router.put(
 router.delete(
   "/:id",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(eventIdSchema),
   deleteEvent
 );
@@ -104,7 +112,7 @@ router.post(
 router.post(
   "/:id/approval",
   verifyJWT,
-  isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(approvalSchema),
   handleApproval
 );
@@ -112,7 +120,7 @@ router.post(
 router.post(
   "/:id/publish",
   verifyJWT,
-  isAllowedToDo(UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(eventIdSchema),
   publishEvent
 );
@@ -152,7 +160,7 @@ router.get(
 router.get(
   "/:id/registrations",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(eventIdSchema),
   getEventRegistrations
 );
@@ -160,7 +168,7 @@ router.get(
 router.post(
   "/:id/attendance",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(markAttendanceSchema),
   markAttendance
 );
@@ -168,7 +176,7 @@ router.post(
 router.post(
   "/:id/close-registration",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(eventIdSchema),
   closeRegistration
 );

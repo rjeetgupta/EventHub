@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { UserRole } from "../types/common.types";
-import ApiError from "../utils/ApiError";
+import { UserRole } from "../types/common.types.js";
+import ApiError from "../utils/ApiError.js";
 
 // ✅ ISSUE: Not using asyncHandler, which is fine for sync operations
 export const isAllowedToDo = (...allowedRoles: UserRole[]) => {

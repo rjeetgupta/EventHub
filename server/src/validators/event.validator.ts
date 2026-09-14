@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EventMode, EventStatus } from "../../generated/prisma/enums";
+import { EventMode, EventStatus } from "../../generated/prisma/enums.js";
 
 // SHARED FIELD SCHEMAS
 
@@ -65,6 +65,10 @@ const CreateEventBody = z
       .min(1, { error: "Please select a category" })
       .max(50, { error: "Category name is too long" })
       .trim(),
+
+    // Only used by SUPER_ADMIN (who has no department of their own) to
+    // choose which department an event belongs to. Ignored for all other roles.
+    departmentId: z.uuid("Invalid department ID").optional(),
   })
   .superRefine((data, ctx) => {
     const eventDate = new Date(data.date);

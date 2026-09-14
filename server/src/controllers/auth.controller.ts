@@ -1,7 +1,7 @@
-import { prisma } from "../config/db";
+import { prisma } from "../config/db.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
-import ApiResponse from "../utils/ApiResponse";
+import ApiResponse from "../utils/ApiResponse.js";
 import {
   loginSchema,
   refreshSchema,
@@ -16,7 +16,7 @@ import {
   changePassword,
   updateProfile,
   getProfile
-} from "../services/auth.service";
+} from "../services/auth.service.js";
 
 // Options
 const baseCookieOptions = {

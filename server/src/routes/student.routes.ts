@@ -3,7 +3,7 @@ import {
   getMyAchievements,
   getMyEvents,
   getMyCertificates,
-} from "../controllers/student.controller";
+} from "../controllers/student.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = Router();

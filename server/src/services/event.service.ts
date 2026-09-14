@@ -1,9 +1,9 @@
-import { prisma } from "../config/db";
-import ApiError from "../utils/ApiError";
-import { EventStatus, RoleType, RegistrationStatus } from "../../generated/prisma/enums"
-import { ApprovalDto, CreateEventDto, EventFilters, MarkAttendanceDto, UpdateEventDto,  } from "../types/event.types";
-import { CreateEventInput } from "../validators/event.validator";
-import { UserRole } from "../types/common.types";
+import { prisma } from "../config/db.js";
+import ApiError from "../utils/ApiError.js";
+import { EventStatus, RoleType, RegistrationStatus } from "../../generated/prisma/enums.js"
+import { ApprovalDto, CreateEventDto, EventFilters, MarkAttendanceDto, UpdateEventDto,  } from "../types/event.types.js";
+import { CreateEventInput } from "../validators/event.validator.js";
+import { UserRole } from "../types/common.types.js";
 
 class EventService {
   /**
@@ -185,14 +185,32 @@ class EventService {
       include: { department: true, role: true },
     });
 
-    if (!user || !user.departmentId) {
-      throw new ApiError(400, "User must belong to a department to create events");
+    if (!user) {
+      throw new ApiError(404, "User not found");
     }
 
-    // Determine initial status based on role
     const isDepartmentAdmin = user.role.name === RoleType.DEPARTMENT_ADMIN;
     const isSuperAdmin = user.role.name === RoleType.SUPER_ADMIN;
     const isGroupAdmin = user.role.name === RoleType.GROUP_ADMIN;
+
+    // Super Admin has no department of their own, so they must specify
+    // which department the event belongs to. Everyone else uses their own.
+    let departmentId: string;
+    if (isSuperAdmin) {
+      if (!data.departmentId) {
+        throw new ApiError(400, "departmentId is required when creating an event as Super Admin");
+      }
+      const department = await prisma.department.findUnique({ where: { id: data.departmentId } });
+      if (!department) {
+        throw new ApiError(404, "Department not found");
+      }
+      departmentId = data.departmentId;
+    } else {
+      if (!user.departmentId) {
+        throw new ApiError(400, "User must belong to a department to create events");
+      }
+      departmentId = user.departmentId;
+    }
 
     let initialStatus: EventStatus;
     let approvedById: string | undefined;
@@ -224,7 +242,7 @@ class EventService {
         maxCapacity: data.maxCapacity,
         category: data.category,
         status: initialStatus,
-        departmentId: user.departmentId,
+        departmentId,
         creatorId: userId,
         approvedById: approvedById,
         approvedAt: approvedAt,
@@ -247,8 +265,27 @@ class EventService {
       include: { department: true, role: true },
     });
 
-    if (!user || !user.departmentId) {
-      throw new ApiError(400, "User must belong to a department to create events");
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    const isSuperAdmin = user.role.name === RoleType.SUPER_ADMIN;
+
+    let departmentId: string;
+    if (isSuperAdmin) {
+      if (!data.departmentId) {
+        throw new ApiError(400, "departmentId is required when saving a draft as Super Admin");
+      }
+      const department = await prisma.department.findUnique({ where: { id: data.departmentId } });
+      if (!department) {
+        throw new ApiError(404, "Department not found");
+      }
+      departmentId = data.departmentId;
+    } else {
+      if (!user.departmentId) {
+        throw new ApiError(400, "User must belong to a department to create events");
+      }
+      departmentId = user.departmentId;
     }
 
     // Create as draft with partial data
@@ -267,7 +304,7 @@ class EventService {
         maxCapacity: data.maxCapacity || 50,
         category: data.category || "Other",
         status: EventStatus.DRAFT,
-        departmentId: user.departmentId,
+        departmentId,
         creatorId: userId,
       },
       include: {
@@ -472,6 +509,61 @@ class EventService {
 
     if (status) {
       where.status = status;
+    }
+
+    const events = await prisma.event.findMany({
+      where,
+      include: {
+        department: { select: { name: true } },
+        creator: { select: { fullName: true } },
+        approvedBy: { select: { fullName: true } },
+        registrations: {
+          select: { userId: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      date: event.date.toISOString(),
+      time: event.time,
+      mode: event.mode,
+      venue: event.venue || undefined,
+      link: event.link || undefined,
+      registrationDeadline: event.registrationDeadline.toISOString(),
+      maxCapacity: event.maxCapacity,
+      currentRegistrations: event.currentRegistrations,
+      category: event.category,
+      status: event.status,
+      approvedAt: event.approvedAt?.toISOString(),
+      approvedById: event.approvedById || undefined,
+      approvedByName: event.approvedBy?.fullName,
+      rejectionReason: event.rejectionReason || undefined,
+      departmentId: event.departmentId,
+      departmentName: event.department.name,
+      creatorId: event.creatorId,
+      creatorName: event.creator.fullName,
+      registeredUsers: event.registrations.map(r => r.userId),
+      createdAt: event.createdAt.toISOString(),
+      updatedAt: event.updatedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Get ALL events across every department (Super Admin only).
+   * Unlike getDepartmentEvents, this is not scoped to the caller's department.
+   */
+  async getAllEvents(status?: string, departmentId?: string) {
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+    if (departmentId) {
+      where.departmentId = departmentId;
     }
 
     const events = await prisma.event.findMany({

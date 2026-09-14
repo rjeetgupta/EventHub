@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '@/api/axios';
 
 interface User {
@@ -17,34 +17,38 @@ export function useAvailableUsers(departmentId: string) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (!departmentId) return;
+  const fetchUsers = useCallback(async () => {
+    if (!departmentId) return;
 
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        // Fetch users from the same department who are not already group admins
-        const response = await axiosInstance.get(`/users`, {
-          params: {
-            departmentId,
-            role: 'STUDENT', // Only students can be assigned as group admins
-            limit: 100,
-          },
-        });
+    try {
+      // Fetch users from the same department who are not already group admins
+      const response = await axiosInstance.get(`/users`, {
+        params: {
+          departmentId,
+          role: 'STUDENT', // Only students can be assigned as group admins
+          excludeGroupAdmins: true,
+          limit: 100,
+        },
+      });
 
-        setUsers(response.data.data || response.data);
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to fetch users');
-        setUsers([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUsers();
+      setUsers(response.data?.data?.data || []);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to fetch users');
+      setUsers([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, [departmentId]);
 
-  return { users, isLoading, error };
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Exposed so callers can refresh the list right after a group admin is
+  // assigned/removed, instead of waiting for a full page reload — otherwise
+  // a just-assigned user would still show up as "available" in this session.
+  return { users, isLoading, error, refetch: fetchUsers };
 }

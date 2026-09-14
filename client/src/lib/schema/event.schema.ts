@@ -3,7 +3,7 @@ import { EventMode as EventModeConst, EventStatus as EventStatusConst, Registrat
 
 export const EventModeEnum = z
   .enum(EventModeConst, { error: "Please select a valid event mode" })
-  .default(EventModeConst.ONLINE);
+  .default(EventModeConst.OFFLINE);
 
 
 export const EventStatusEnum = z.enum(EventStatusConst, {
@@ -85,7 +85,7 @@ export const EventFiltersSchema = z.object({
 });
 
 
-export const CreateEventSchema = z
+export const CreateEventBaseSchema = z
   .object({
     title: z
       .string({ error: (iss) => (iss.input === undefined ? "Event title is required" : "Invalid input") })
@@ -99,17 +99,14 @@ export const CreateEventSchema = z
       .max(2000, { error: "Description cannot exceed 2000 characters" })
       .trim(),
 
-    date: z.iso.datetime({
+    date: z.iso.date({
       error: (issue) =>
         issue.input === undefined
           ? "Event date is required"
-          : "Please provide a valid date and time",
+          : "Please provide a valid date (YYYY-MM-DD)",
     }),
 
-    time: z
-      .string({ error: (iss) => (iss.input === undefined ? "Event time is required" : "Invalid input") })
-      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-      }),
+    time: z.iso.time("Event time is required"),
 
     mode: EventModeEnum,
 
@@ -126,11 +123,11 @@ export const CreateEventSchema = z
       .optional()
       .or(z.literal("")),
 
-    registrationDeadline: z.iso.datetime({
+    registrationDeadline: z.iso.date({
       error: (issue) =>
         issue.input === undefined
           ? "Registration deadline is required"
-          : "Please provide a valid deadline date and time",
+          : "Please provide a valid deadline date",
     }),
 
     maxCapacity: z
@@ -146,8 +143,22 @@ export const CreateEventSchema = z
       .min(1, { error: "Please select a category" })
       .max(50, { error: "Category name is too long" })
       .trim(),
-  })
-  .superRefine((data, ctx) => {
+
+    // Only used by SUPER_ADMIN (who has no department of their own) to pick
+    // which department an event belongs to. Ignored for all other roles.
+    departmentId: z.uuid().optional().or(z.literal("")),
+  });
+
+export function validateEventBusinessRules(
+  data: {
+    date: string;
+    registrationDeadline: string;
+    mode: string;
+    venue?: string;
+    link?: string;
+  },
+  ctx: any
+) {
     const eventDate = new Date(data.date);
     const deadline = new Date(data.registrationDeadline);
     const now = new Date();
@@ -211,9 +222,11 @@ export const CreateEventSchema = z
         });
       }
     }
-  });
+}
 
-export const UpdateEventSchema = CreateEventSchema.partial();
+export const CreateEventSchema = CreateEventBaseSchema.superRefine(validateEventBusinessRules);
+
+export const UpdateEventSchema = CreateEventBaseSchema.partial();
 
 
 export const ApprovalSchema = z
@@ -255,13 +268,16 @@ export const MarkAttendanceSchema = z.object({
 // ============================================================================
 // RESPONSE SCHEMAS
 // ============================================================================
+export const PaginationSchema = z.object({
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
 
 export const EventsResponseSchema = z.object({
-  events: z.array(EventSchema),
-  total: z.number().int().nonnegative(),
-  page: z.number().int().positive(),
-  totalPages: z.number().int().nonnegative(),
-  limit: z.number().int().positive(),
+  data: z.array(EventSchema),
+  pagination: PaginationSchema,
 });
 
 export const MyEventsResponseSchema = z.object({
@@ -274,10 +290,10 @@ export const MyEventsResponseSchema = z.object({
 // ============================================================================
 
 // For creating events (with default values)
-export const CreateEventFormSchema = CreateEventSchema.safeExtend({
+export const CreateEventFormSchema = CreateEventBaseSchema.safeExtend({
   venue: z.string().optional().or(z.literal("")).default(""),
   link: z.url().optional().or(z.literal("")).default(""),
-});
+}).superRefine(validateEventBusinessRules);
 
 // For updating events (all optional)
 export const UpdateEventFormSchema = UpdateEventSchema;

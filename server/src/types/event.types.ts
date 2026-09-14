@@ -1,5 +1,5 @@
-import { EventStatus, EventMode, RegistrationStatus } from "../../generated/prisma/enums";
-import { UserRole } from "./common.types";
+import { EventStatus, EventMode, RegistrationStatus } from "../../generated/prisma/enums.js";
+import { UserRole } from "./common.types.js";
 
 
 

@@ -30,23 +30,6 @@ app.use(cors({
 }))
 
 /**
- * Route Imports
- * All API routes are imported here
- */
-import authRoutes from './routes/auth.routes.js';
-import departmentRoutes from "./routes/department.routes.js";
-import eventRoutes from "./routes/event.routes.js";
-
-
-/**
- * Route Registration
- * All routes prefixed with /api/v1
- */
-app.use('/api/v1/auth', authRoutes);
-app.use("/api/v1/departments", departmentRoutes);
-app.use("/api/v1/events", eventRoutes)
-
-/**
  * Health Check Endpoint
  * Used for monitoring and verifying server is running
  */
@@ -59,8 +42,17 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 /**
+ * Route Registration
+ * All routes are registered here (auth, departments, events, users)
+ * via routes/index.ts, each already prefixed with /api/v1/...
+ */
+app.use(routes);
+
+/**
  * 404 Handler
- * Handles requests to non-existent routes
+ * Handles requests to non-existent routes.
+ * IMPORTANT: this must come AFTER route registration above,
+ * otherwise every request gets caught here before reaching real routes.
  */
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
@@ -70,7 +62,6 @@ app.use((_req: Request, res: Response) => {
   });
 });
 
-app.use(routes);
 /**
  * Global Error Handler Middleware
  * Must be last middleware - catches all errors

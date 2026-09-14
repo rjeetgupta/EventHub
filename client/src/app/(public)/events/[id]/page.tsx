@@ -95,42 +95,6 @@ export default function EventDetailPage() {
     );
   }
 
-
-  // This would come from your API/database
-  // const isLoggedIn = false; // Change based on auth state
-  // const userId = null; // User ID if logged in
-
-  // // Mock event data - replace with actual API call
-  // const event: Event = {
-  //   id: eventId,
-  //   title: 'AI & Machine Learning Workshop',
-  //   date: '2024-12-25',
-  //   time: '10:00 AM - 4:00 PM',
-  //   department: 'Computer Science',
-  //   category: 'Workshop',
-  //   mode: 'Hybrid',
-  //   status: 'upcoming',
-  //   registrations: 245,
-  //   maxCapacity: 300,
-  //   registeredUsers: [],
-  //   description: 'Join us for an intensive workshop on AI and Machine Learning. Learn from industry experts about the latest trends, tools, and techniques in artificial intelligence. This hands-on workshop will cover neural networks, deep learning, and practical applications.',
-  //   venue: 'Auditorium A, Main Campus',
-  //   organizerName: 'Dr. Sarah Johnson',
-  //   organizerEmail: 'sarah.johnson@college.edu',
-  //   agenda: [
-  //     '10:00 AM - Introduction to AI',
-  //     '11:30 AM - Neural Networks Basics',
-  //     '1:00 PM - Lunch Break',
-  //     '2:00 PM - Hands-on Deep Learning',
-  //     '3:30 PM - Q&A Session'
-  //   ],
-  //   certificateAvailable: true
-  // };
-
-  // const [reminderEnabled, setReminderEnabled] = useState(false);
-  // const isRegistered = event.registeredUsers?.includes(userId || '') || false;
-  // const isUpcoming = event.status === 'upcoming';
-
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

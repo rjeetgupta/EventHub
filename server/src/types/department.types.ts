@@ -4,8 +4,8 @@
  * ============================================================================
  */
 
-import { RoleType, PermissionType } from "../../generated/prisma/enums";
-import { Permission, UserRole } from "./common.types";
+import { RoleType, PermissionType } from "../../generated/prisma/enums.js";
+import { Permission, UserRole } from "./common.types.js";
 
 // ============================================================================
 // REQUEST TYPES

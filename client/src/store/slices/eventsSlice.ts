@@ -1,9 +1,5 @@
-/**
- * Events Redux Slice - Fixed Version
- */
-
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { eventsApi } from '@/api/events.api';
+import { eventService } from '@/services/eventService'; 
 import {
   Event,
   EventFilters,
@@ -27,6 +23,9 @@ interface EventsState {
   
   // Department events (for group admin)
   departmentEvents: Event[];
+
+  // ALL events across every department (Super Admin only)
+  allEvents: Event[];
   
   // User's registered events (for students)
   myEvents: Event[];
@@ -55,6 +54,7 @@ const initialState: EventsState = {
   events: [],
   currentEvent: null,
   departmentEvents: [],
+  allEvents: [],
   myEvents: [],
   myRegistrations: [],
   pagination: {
@@ -71,10 +71,6 @@ const initialState: EventsState = {
   error: null,
 };
 
-// ============================================================================
-// ASYNC THUNKS - EVENT LISTING
-// ============================================================================
-
 export const fetchEvents = createAsyncThunk<
   EventsResponse,
   Partial<EventFilters> | undefined,
@@ -83,7 +79,7 @@ export const fetchEvents = createAsyncThunk<
   'events/fetchEvents',
   async (filters, { rejectWithValue }) => {
     try {
-      return await eventsApi.getEvents(filters);
+      return await eventService.getEvents(filters);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch events');
     }
@@ -98,16 +94,12 @@ export const fetchEventById = createAsyncThunk<
   'events/fetchEventById',
   async (id, { rejectWithValue }) => {
     try {
-      return await eventsApi.getEventById(id);
+      return await eventService.getEventById(id);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch event');
     }
   }
 );
-
-// ============================================================================
-// ASYNC THUNKS - EVENT MANAGEMENT
-// ============================================================================
 
 export const createEvent = createAsyncThunk<
   Event,
@@ -117,7 +109,7 @@ export const createEvent = createAsyncThunk<
   'events/createEvent',
   async (data, { rejectWithValue }) => {
     try {
-      return await eventsApi.createEvent(data);
+      return await eventService.createEvent(data);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to create event');
     }
@@ -132,7 +124,7 @@ export const updateEvent = createAsyncThunk<
   'events/updateEvent',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      return await eventsApi.updateEvent(id, data);
+      return await eventService.updateEvent(id, data);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to update event');
     }
@@ -147,7 +139,7 @@ export const deleteEvent = createAsyncThunk<
   'events/deleteEvent',
   async (id, { rejectWithValue }) => {
     try {
-      await eventsApi.deleteEvent(id);
+      await eventService.deleteEvent(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to delete event');
@@ -163,7 +155,7 @@ export const submitEventForApproval = createAsyncThunk<
   'events/submitForApproval',
   async (id, { rejectWithValue }) => {
     try {
-      return await eventsApi.submitForApproval(id);
+      return await eventService.submitForApproval(id);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to submit event');
     }
@@ -178,16 +170,12 @@ export const saveEventDraft = createAsyncThunk<
   'events/saveDraft',
   async (data, { rejectWithValue }) => {
     try {
-      return await eventsApi.saveDraft(data);
+      return await eventService.saveDraft(data);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to save draft');
     }
   }
 );
-
-// ============================================================================
-// ASYNC THUNKS - DEPARTMENT EVENTS
-// ============================================================================
 
 export const fetchDepartmentEvents = createAsyncThunk<
   Event[],
@@ -197,16 +185,27 @@ export const fetchDepartmentEvents = createAsyncThunk<
   'events/fetchDepartmentEvents',
   async (status, { rejectWithValue }) => {
     try {
-      return await eventsApi.getDepartmentEvents(status);
+      return await eventService.getDepartmentEvents(status);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch department events');
     }
   }
 );
 
-// ============================================================================
-// ASYNC THUNKS - APPROVAL (DEPT ADMIN)
-// ============================================================================
+export const fetchAllEvents = createAsyncThunk<
+  Event[],
+  { status?: string; departmentId?: string } | undefined,
+  { rejectValue: string }
+>(
+  'events/fetchAllEvents',
+  async (params, { rejectWithValue }) => {
+    try {
+      return await eventService.getAllEvents(params?.status, params?.departmentId);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch all events');
+    }
+  }
+);
 
 export const handleEventApproval = createAsyncThunk<
   Event,
@@ -216,7 +215,7 @@ export const handleEventApproval = createAsyncThunk<
   'events/handleApproval',
   async ({ eventId, data }, { rejectWithValue }) => {
     try {
-      return await eventsApi.handleEventApproval(eventId, data);
+      return await eventService.handleEventApproval(eventId, data);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to process approval');
     }
@@ -231,16 +230,12 @@ export const publishEvent = createAsyncThunk<
   'events/publishEvent',
   async (id, { rejectWithValue }) => {
     try {
-      return await eventsApi.publishEvent(id);
+      return await eventService.publishEvent(id);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to publish event');
     }
   }
 );
-
-// ============================================================================
-// ASYNC THUNKS - REGISTRATIONS
-// ============================================================================
 
 export const registerForEvent = createAsyncThunk<
   { eventId: string; registration: Registration },
@@ -250,7 +245,7 @@ export const registerForEvent = createAsyncThunk<
   'events/registerForEvent',
   async (eventId, { rejectWithValue }) => {
     try {
-      const registration = await eventsApi.registerForEvent(eventId);
+      const registration = await eventService.registerForEvent(eventId);
       return { eventId, registration };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to register');
@@ -266,7 +261,7 @@ export const cancelEventRegistration = createAsyncThunk<
   'events/cancelRegistration',
   async (eventId, { rejectWithValue }) => {
     try {
-      await eventsApi.cancelRegistration(eventId);
+      await eventService.cancelRegistration(eventId);
       return eventId;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to cancel registration');
@@ -282,16 +277,12 @@ export const fetchMyEvents = createAsyncThunk<
   'events/fetchMyEvents',
   async (status, { rejectWithValue }) => {
     try {
-      return await eventsApi.getMyEvents(status);
+      return await eventService.getMyEvents(status);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch my events');
     }
   }
 );
-
-// ============================================================================
-// ASYNC THUNKS - ATTENDANCE
-// ============================================================================
 
 export const markAttendance = createAsyncThunk<
   { eventId: string },
@@ -301,7 +292,7 @@ export const markAttendance = createAsyncThunk<
   'events/markAttendance',
   async ({ eventId, data }, { rejectWithValue }) => {
     try {
-      await eventsApi.markAttendance(eventId, data);
+      await eventService.markAttendance(eventId, data);
       return { eventId };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to mark attendance');
@@ -317,16 +308,13 @@ export const closeRegistration = createAsyncThunk<
   'events/closeRegistration',
   async (eventId, { rejectWithValue }) => {
     try {
-      return await eventsApi.closeRegistration(eventId);
+      return await eventService.closeRegistration(eventId);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to close registration');
     }
   }
 );
 
-// ============================================================================
-// SLICE
-// ============================================================================
 
 const eventsSlice = createSlice({
   name: 'events',
@@ -352,13 +340,8 @@ const eventsSlice = createSlice({
       })
       .addCase(fetchEvents.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.events = action.payload.events;
-        state.pagination = {
-          total: action.payload.total,
-          page: action.payload.page,
-          totalPages: action.payload.totalPages,
-          limit: action.payload.limit,
-        };
+        state.events = action.payload.data;
+        state.pagination = action.payload.pagination
       })
       .addCase(fetchEvents.rejected, (state, action) => {
         state.isLoading = false;
@@ -411,6 +394,10 @@ const eventsSlice = createSlice({
         // Update in department events
         const deptIndex = state.departmentEvents.findIndex(e => e.id === action.payload.id);
         if (deptIndex !== -1) state.departmentEvents[deptIndex] = action.payload;
+
+        // Update in all events (admin)
+        const allIndex = state.allEvents.findIndex(e => e.id === action.payload.id);
+        if (allIndex !== -1) state.allEvents[allIndex] = action.payload;
         
         // Update current event
         if (state.currentEvent?.id === action.payload.id) {
@@ -432,6 +419,7 @@ const eventsSlice = createSlice({
         state.isDeleting = false;
         state.events = state.events.filter(e => e.id !== action.payload);
         state.departmentEvents = state.departmentEvents.filter(e => e.id !== action.payload);
+        state.allEvents = state.allEvents.filter(e => e.id !== action.payload);
       })
       .addCase(deleteEvent.rejected, (state, action) => {
         state.isDeleting = false;
@@ -482,6 +470,21 @@ const eventsSlice = createSlice({
       .addCase(fetchDepartmentEvents.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || 'Failed to fetch department events';
+      });
+
+    // FETCH ALL EVENTS (Super Admin)
+    builder
+      .addCase(fetchAllEvents.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllEvents.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.allEvents = action.payload;
+      })
+      .addCase(fetchAllEvents.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to fetch all events';
       });
 
     // REGISTER FOR EVENT
@@ -551,6 +554,8 @@ const eventsSlice = createSlice({
         state.isLoading = false;
         const index = state.departmentEvents.findIndex(e => e.id === action.payload.id);
         if (index !== -1) state.departmentEvents[index] = action.payload;
+        const allIndex = state.allEvents.findIndex(e => e.id === action.payload.id);
+        if (allIndex !== -1) state.allEvents[allIndex] = action.payload;
       })
       .addCase(handleEventApproval.rejected, (state, action) => {
         state.isLoading = false;
@@ -567,6 +572,8 @@ const eventsSlice = createSlice({
         state.isLoading = false;
         const index = state.departmentEvents.findIndex(e => e.id === action.payload.id);
         if (index !== -1) state.departmentEvents[index] = action.payload;
+        const allIndex = state.allEvents.findIndex(e => e.id === action.payload.id);
+        if (allIndex !== -1) state.allEvents[allIndex] = action.payload;
       })
       .addCase(publishEvent.rejected, (state, action) => {
         state.isLoading = false;

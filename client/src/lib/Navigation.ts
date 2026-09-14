@@ -28,11 +28,11 @@ export const NAVIGATION: NavItem[] = [
   },
 
   // STUDENT + ALL AUTH
-  {
-    label: "Events",
-    href: "/events",
-    roles: [UserRole.STUDENT, UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN],
-  },
+  // {
+  //   label: "Events",
+  //   href: "/events",
+  //   roles: [UserRole.STUDENT, UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN],
+  // },
   {
     label: "My Events",
     href: "/my-events",

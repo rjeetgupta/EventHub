@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import departmentService from "../services/department.service";
-import ApiResponse from "../utils/ApiResponse";
-import asyncHandler from "../utils/asyncHandler";
+import departmentService from "../services/department.service.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 
 export const getDepartments = asyncHandler(
@@ -148,6 +148,20 @@ export const removeGroupAdmin = asyncHandler(
 
     res.status(200).json(
       new ApiResponse(200, null, "Group admin removed successfully")
+    );
+  }
+);
+
+export const toggleGroupAdminStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const groupAdmin = await departmentService.toggleGroupAdminStatus(
+      req.validated.params.departmentId,
+      req.validated.params.groupAdminId,
+      req.validated.body.isActive
+    );
+
+    res.status(200).json(
+      new ApiResponse(200, groupAdmin, "Group admin status updated successfully")
     );
   }
 );

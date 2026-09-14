@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import eventService from "../services/event.service";
-import ApiResponse from "../utils/ApiResponse";
-import asyncHandler from "../utils/asyncHandler";
+import eventService from "../services/event.service.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 // ============================================================================
 // PUBLIC CONTROLLERS
@@ -148,6 +148,21 @@ const getDepartmentEvents = asyncHandler(async (req: Request, res: Response) => 
     .json(new ApiResponse(200, events, "Department events fetched successfully"));
 });
 
+/**
+ * Get ALL events across every department
+ * @route GET /api/v1/events/admin/all
+ * @access Super Admin
+ */
+const getAllEvents = asyncHandler(async (req: Request, res: Response) => {
+  const status = req.query.status as string | undefined;
+  const departmentId = req.query.departmentId as string | undefined;
+  const events = await eventService.getAllEvents(status, departmentId);
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, events, "All events fetched successfully"));
+});
+
 // ============================================================================
 // STUDENT REGISTRATION CONTROLLERS
 // ============================================================================
@@ -269,6 +284,7 @@ export {
   handleApproval,
   publishEvent,
   getDepartmentEvents,
+  getAllEvents,
   registerForEvent,
   cancelRegistration,
   getMyEvents,

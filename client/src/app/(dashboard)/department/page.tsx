@@ -14,7 +14,6 @@ import {
   CheckCircle,
   UserPlus,
 } from 'lucide-react';
-import { User } from '@/lib/types/user.types';
 import { GroupAdmin } from '@/lib/schema/department.schema';
 
 // Reusable components
@@ -32,21 +31,14 @@ import { useAvailableUsers } from '@/hooks/useAvailableUser';
 import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/store/hook';
 import { useDepartmentEvents } from '@/hooks/useDepartmentEvents';
+import { Loader2 } from 'lucide-react';
 
-interface DepartmentAdminDashboardProps {
-  currentUser: User;
-}
-
-export default function DepartmentAdminDashboard({
-  currentUser,
-}: DepartmentAdminDashboardProps) {
+export default function DepartmentAdminDashboard() {
   const router = useRouter();
-  const departmentId = currentUser?.departmentId!;
-  // console.log("DEPARTMENT ID FROM DASHBOARD : ", departmentId)
-  const { events } = useAppSelector((state) => state.events);
-  const { user } = useAppSelector((state) => state.auth)
-  // console.log("DEPARTMENT USER : ", user?.departmentId)
-  // Custom hooks
+  const { user } = useAppSelector((state) => state.auth);
+  const departmentId = user?.departmentId;
+
+  // Custom hooks (guarded: departmentId may briefly be undefined on first render)
   const {
     department,
     groupAdmins,
@@ -63,12 +55,12 @@ export default function DepartmentAdminDashboard({
     handleRemoveGroupAdmin,
     handleToggleStatus,
     refreshData,
-  } = useDepartmentAdmin(user?.departmentId);
+  } = useDepartmentAdmin(departmentId ?? '');
 
-  const { users: availableUsers, isLoading: isLoadingUsers } =
-    useAvailableUsers(departmentId);
+  const { users: availableUsers, isLoading: isLoadingUsers, refetch: refetchAvailableUsers } =
+    useAvailableUsers(departmentId ?? '');
   const { departmentEvents, eventStats } =
-    useDepartmentEvents(departmentId);
+    useDepartmentEvents(departmentId ?? undefined);
   
 
   // Modal states
@@ -76,6 +68,15 @@ export default function DepartmentAdminDashboard({
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<GroupAdmin | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  if (!departmentId) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        <span className="ml-3 text-muted-foreground">Loading department...</span>
+      </div>
+    );
+  }
 
   // console.log("Event stats : ", eventStats)
   // Stats calculations
@@ -94,14 +95,16 @@ export default function DepartmentAdminDashboard({
     pendingEvents: eventStats.pendingEvents,
   };
 
-  // Pending events calculation (this would come from events state in real implementation)
-  const pendingEvents = 0; // TODO: Get from events slice
+  const pendingEvents = stats.pendingEvents;
 
   // Handle assign group admin
   const onAssignAdmin = async (userId: string, permissions: any[]) => {
     const result = await handleAssignGroupAdmin(userId, permissions);
     if (result.success) {
       setIsAssignModalOpen(false);
+      // Refresh the "available users" list so the person just assigned
+      // no longer shows up as an option next time the modal opens.
+      refetchAvailableUsers();
     }
   };
 
@@ -121,6 +124,8 @@ export default function DepartmentAdminDashboard({
     const result = await handleRemoveGroupAdmin(deleteConfirmId);
     if (result.success) {
       setDeleteConfirmId(null);
+      // A removed group admin becomes eligible to be assigned again.
+      refetchAvailableUsers();
     }
   };
 
@@ -167,7 +172,10 @@ export default function DepartmentAdminDashboard({
             Create Event
           </Button>
           <Button
-            onClick={() => setIsAssignModalOpen(true)}
+            onClick={() => {
+              refetchAvailableUsers();
+              setIsAssignModalOpen(true);
+            }}
             className="bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
           >
             <UserPlus className="w-4 h-4 mr-2" />

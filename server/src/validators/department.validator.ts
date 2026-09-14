@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Permission } from "../types/common.types";
+import { Permission } from "../types/common.types.js";
 
 // DEPARTMENT FILTERS (QUERY)
 

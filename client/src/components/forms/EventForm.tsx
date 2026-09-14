@@ -34,6 +34,8 @@ interface EventFormFieldsProps {
   step: 'basic' | 'details' | 'settings' | 'all';
   departments?: Department[];
   isProcessing?: boolean;
+  /** Show a department picker — only relevant for SUPER_ADMIN, who has no department of their own. */
+  showDepartmentSelect?: boolean;
 }
 
 // Event categories constant
@@ -54,6 +56,7 @@ export function EventFormFields({
   step,
   departments = [],
   isProcessing = false,
+  showDepartmentSelect = false,
 }: EventFormFieldsProps) {
   const watchMode = form.watch('mode');
 
@@ -137,6 +140,41 @@ export function EventFormFields({
             </FormItem>
           )}
         />
+
+        {/* Department (Super Admin only) */}
+        {showDepartmentSelect && (
+          <FormField
+            control={form.control}
+            name="departmentId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Department *</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  disabled={isProcessing}
+                >
+                  <FormControl>
+                    <SelectTrigger className="border-orange-500/20 focus:ring-orange-500">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Which department this event belongs to
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
       </div>
     );
   }
@@ -407,6 +445,41 @@ export function EventFormFields({
           </FormItem>
         )}
       />
+
+      {/* Department (Super Admin only — everyone else uses their own department automatically) */}
+      {showDepartmentSelect && (
+        <FormField
+          control={form.control}
+          name="departmentId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Department *</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+                disabled={isProcessing}
+              >
+                <FormControl>
+                  <SelectTrigger className="border-orange-500/20 focus:ring-orange-500">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Which department this event belongs to
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
       {/* Date & Time Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

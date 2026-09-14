@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, ArrowRight, Save, Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -115,9 +115,11 @@ export default function CreateEventPage() {
     (state) => state.departments
   );
   const { isCreating } = useAppSelector((state) => state.events);
+  const { user } = useAppSelector((state) => state.auth);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const form = useForm<CreateEventFormData>({
-    resolver: zodResolver(CreateEventFormSchema),
+    resolver: zodResolver(CreateEventFormSchema) as Resolver<CreateEventFormData>,
     mode: 'onChange',
     defaultValues: {
       title: '',
@@ -130,6 +132,7 @@ export default function CreateEventPage() {
       link: '',
       registrationDeadline: '',
       maxCapacity: 50,
+      departmentId: '',
     },
   });
 
@@ -174,6 +177,12 @@ export default function CreateEventPage() {
       setLocalError(null);
       const data = form.getValues();
 
+      if (isSuperAdmin && !data.departmentId) {
+        setLocalError('Please select a department before saving as draft');
+        setCurrentStep(0);
+        return;
+      }
+
       const result = await dispatch(saveEventDraft(data)).unwrap();
 
       toast.success('Draft saved successfully');
@@ -188,6 +197,12 @@ export default function CreateEventPage() {
   const onSubmit = async (data: CreateEventFormData) => {
     try {
       setLocalError(null);
+
+      if (isSuperAdmin && !data.departmentId) {
+        setLocalError('Please select a department for this event');
+        setCurrentStep(0);
+        return;
+      }
 
       const result = await dispatch(createEvent(data)).unwrap();
 
@@ -267,6 +282,7 @@ export default function CreateEventPage() {
                     step="basic"
                     departments={departments}
                     isProcessing={isCreating}
+                    showDepartmentSelect={isSuperAdmin}
                   />
                 )}
 

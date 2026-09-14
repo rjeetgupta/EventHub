@@ -63,11 +63,11 @@ export type Role =
     DRAFT = "DRAFT",
     PENDING_APPROVAL = "PENDING_APPROVAL",
     APPROVED = "APPROVED",
+    REJECTED = "REJECTED",
     PUBLISHED = "PUBLISHED",
     REGISTRATION_CLOSED = "REGISTRATION_CLOSED",
     ONGOING = "ONGOING",
     COMPLETED = "COMPLETED",
-    ARCHIVED = "ARCHIVED",
   }
   
   export enum RegistrationStatus {

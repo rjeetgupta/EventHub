@@ -5,8 +5,8 @@
 // import { zodResolver } from '@hookform/resolvers/zod';
 // import { z } from 'zod';
 // import { useFormErrors } from '@/hooks/useFormErrors';
-// import { EventService } from '@/services/eventService';
-// import { User, Event } from '@/types/api';
+// import { User } from "@/lib/types/user.types";
+// import { Event } from '@/lib/schema/event.schema';
 // import {
 //   Dialog,
 //   DialogContent,
@@ -69,43 +69,43 @@
 //   });
 
 //   // Handle form submission
-//   const onSubmit = useCallback(
-//     async (data: EventRegistrationInput) => {
-//       setIsProcessing(true);
-//       clearAllErrors();
-//       setIsSuccessful(false);
+//   // const onSubmit = useCallback(
+//   //   async (data: EventRegistrationInput) => {
+//   //     setIsProcessing(true);
+//   //     clearAllErrors();
+//   //     setIsSuccessful(false);
 
-//       try {
-//         const result = await EventService.registerForEvent(data);
+//   //     try {
+//   //       const result = await EventService.registerForEvent(data);
 
-//         if (result.success) {
-//           setIsSuccessful(true);
-//           form.reset();
-//           setTimeout(() => {
-//             onSuccess?.();
-//             onClose();
-//             setIsSuccessful(false);
-//           }, 1500);
-//         } else if (result.errors) {
-//           Object.entries(result.errors).forEach(([field, message]) => {
-//             form.setError(field as any, { message: String(message) });
-//           });
-//           if (result.message) {
-//             setGeneralError(result.message);
-//           }
-//         } else {
-//           setGeneralError(result.message || 'Failed to register for event');
-//         }
-//       } catch (error) {
-//         setGeneralError(
-//           error instanceof Error ? error.message : 'Failed to register for event'
-//         );
-//       } finally {
-//         setIsProcessing(false);
-//       }
-//     },
-//     [clearAllErrors, setGeneralError, form, onSuccess, onClose]
-//   );
+//   //       if (result.success) {
+//   //         setIsSuccessful(true);
+//   //         form.reset();
+//   //         setTimeout(() => {
+//   //           onSuccess?.();
+//   //           onClose();
+//   //           setIsSuccessful(false);
+//   //         }, 1500);
+//   //       } else if (result.errors) {
+//   //         Object.entries(result.errors).forEach(([field, message]) => {
+//   //           form.setError(field as any, { message: String(message) });
+//   //         });
+//   //         if (result.message) {
+//   //           setGeneralError(result.message);
+//   //         }
+//   //       } else {
+//   //         setGeneralError(result.message || 'Failed to register for event');
+//   //       }
+//   //     } catch (error) {
+//   //       setGeneralError(
+//   //         error instanceof Error ? error.message : 'Failed to register for event'
+//   //       );
+//   //     } finally {
+//   //       setIsProcessing(false);
+//   //     }
+//   //   },
+//   //   [clearAllErrors, setGeneralError, form, onSuccess, onClose]
+//   // );
 
 //   return (
 //     <Dialog open={isOpen} onOpenChange={onClose}>

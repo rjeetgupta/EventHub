@@ -1,5 +1,5 @@
-import { prisma } from "../config/db";
-import ApiError from "../utils/ApiError";
+import { prisma } from "../config/db.js";
+import ApiError from "../utils/ApiError.js";
 import {
   CreateDepartmentDto,
   UpdateDepartmentDto,
@@ -18,10 +18,10 @@ import {
   DepartmentAnalyticsFiltersDto,
   DepartmentAnalytics,
   CreateDepartmentResponse,
-} from "../types/department.types";
-import { Permission, UserRole } from "../types/common.types";
-import { EventStatus, RegistrationStatus, PermissionType, RoleType } from "../../generated/prisma/enums";
-import { hashPassword } from "../utils/password";
+} from "../types/department.types.js";
+import { Permission, UserRole } from "../types/common.types.js";
+import { EventStatus, RegistrationStatus, PermissionType, RoleType } from "../../generated/prisma/enums.js";
+import { hashPassword } from "../utils/password.js";
 
 export const AVAILABLE_PERMISSIONS: PermissionDefinition[] = [
   {
@@ -766,6 +766,56 @@ class DepartmentService {
         (up) => up.permission.name as Permission
       ),
       isActive: true,
+      stats: await calculateGroupAdminStats(user.id, departmentId),
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Toggle a group admin's active status (soft enable/disable their permission grants)
+   */
+  async toggleGroupAdminStatus(
+    departmentId: string,
+    userId: string,
+    isActive: boolean
+  ): Promise<GroupAdminResponse> {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!department) {
+      throw new ApiError(404, "Department not found");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.departmentId !== departmentId) {
+      throw new ApiError(404, "Group admin not found in this department");
+    }
+
+    await prisma.groupAdminPermission.updateMany({
+      where: { userId },
+      data: { isGranted: isActive },
+    });
+
+    const permissions = await prisma.groupAdminPermission.findMany({
+      where: { userId, isGranted: true },
+      include: { permission: true },
+    });
+
+    return {
+      id: user.id,
+      userId: user.id,
+      userName: user.fullName,
+      userEmail: user.email,
+      studentID: user.studentID || undefined,
+      departmentId,
+      departmentName: department.name,
+      permissions: permissions.map((p) => p.permission.name as Permission),
+      isActive,
       stats: await calculateGroupAdminStats(user.id, departmentId),
       createdAt: user.createdAt.toISOString(),
       updatedAt: new Date().toISOString(),

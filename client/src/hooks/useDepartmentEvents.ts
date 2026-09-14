@@ -2,51 +2,20 @@
 'use client';
 
 import { useMemo, useEffect } from 'react';
-import { useAppSelector } from '@/store/hook';
-import { useEventFilters } from '@/hooks/useEventFilters';
+import { useAppDispatch, useAppSelector } from '@/store/hook';
+import { fetchDepartmentEvents } from '@/store/slices/eventsSlice';
 import { EventStatus } from '@/lib/types/common.types';
 
-export function useDepartmentEvents(departmentId: string) {
-  const { events } = useAppSelector((state) => state.events);
+export function useDepartmentEvents(departmentId?: string) {
+  const dispatch = useAppDispatch();
+  const { departmentEvents, isLoading } = useAppSelector((state) => state.events);
 
-  const {
-    filters,
-    setDepartments,
-  } = useEventFilters();
-
-  // 🔒 Lock department
+  // Fetch this department's events once we know who we are
   useEffect(() => {
     if (departmentId) {
-      setDepartments([departmentId]);
+      dispatch(fetchDepartmentEvents());
     }
-  }, [departmentId, setDepartments]);
-
-  const departmentEvents = useMemo(() => {
-    let filtered = events;
-
-    // department scope
-    if (filters.departments.length > 0) {
-      filtered = filtered.filter(
-        (e) => filters.departments.includes(e.departmentId)
-      );
-    }
-
-    // category
-    if (filters.categories.length > 0) {
-      filtered = filtered.filter(
-        (e) => filters.categories.includes(e.category)
-      );
-    }
-
-    // mode
-    if (filters.mode !== 'All') {
-      filtered = filtered.filter(
-        (e) => e.mode === filters.mode
-      );
-    }
-
-    return filtered;
-  }, [events, filters]);
+  }, [departmentId, dispatch]);
 
   // 📊 Stats
   const eventStats = useMemo(() => {
@@ -55,19 +24,15 @@ export function useDepartmentEvents(departmentId: string) {
     const totalEvents = departmentEvents.length;
 
     const upcomingEvents = departmentEvents.filter(
-      (e) =>
-        e.status === EventStatus.PUBLISHED &&
-        new Date(e.date) >= now
+      (e) => e.status === EventStatus.PUBLISHED && new Date(e.date) >= now
     ).length;
 
     const completedEvents = departmentEvents.filter(
-      (e) =>
-        e.status === EventStatus.PUBLISHED &&
-        new Date(e.date) < now
+      (e) => e.status === EventStatus.COMPLETED
     ).length;
 
     const pendingEvents = departmentEvents.filter(
-      (e) => e.status === EventStatus.DRAFT
+      (e) => e.status === EventStatus.PENDING_APPROVAL
     ).length;
 
     return {
@@ -81,6 +46,6 @@ export function useDepartmentEvents(departmentId: string) {
   return {
     departmentEvents,
     eventStats,
-    filters,
+    isLoading,
   };
 }
