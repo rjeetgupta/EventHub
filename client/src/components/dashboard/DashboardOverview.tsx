@@ -204,6 +204,8 @@ export function DashboardOverview() {
     error,
   } = useAppSelector((state) => state.events);
   const departments = useAppSelector((state) => state.departments.departments);
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const departmentData = departments.find((department) => department.id === currentUser?.departmentId);
   const sourceEvents: Event[] = (
     role === "student"
       ? myEvents
@@ -211,6 +213,7 @@ export function DashboardOverview() {
         ? allEvents
         : departmentEvents
   ) as Event[];
+  const studentAttendanceRate = myRegistrations.length ? Math.round((myRegistrations.filter((registration) => registration.status === "ATTENDED").length / myRegistrations.length) * 100) : null;
   const view = useMemo(() => {
     const configured = views[role];
     const mappedEvents: DashboardEvent[] = sourceEvents.map((event) => ({
@@ -267,6 +270,10 @@ export function DashboardOverview() {
       stats: configured.stats.map((stat) => {
         if (stat.label === "My Registrations")
           return { ...stat, value: String(myRegistrations.length) };
+        if (stat.label === "Events Attended")
+          return { ...stat, value: String(myRegistrations.filter((registration) => registration.status === "ATTENDED").length) };
+        if (["Bookmarked Events", "Clubs Joined"].includes(stat.label))
+          return { ...stat, value: "—", trend: "API needed" };
         if (
           stat.label === "Total Events" ||
           stat.label === "Group Events" ||
@@ -277,14 +284,16 @@ export function DashboardOverview() {
           return { ...stat, value: registrationsCount.toLocaleString() };
         if (stat.label === "Departments")
           return { ...stat, value: String(departments.length) };
-        if (["Group Members", "Department Students", "Active Groups"].includes(stat.label))
-          return { ...stat, value: "—", trend: "API needed" };
+        if (stat.label === "Department Students")
+          return { ...stat, value: departmentData?.stats?.totalParticipants?.toLocaleString() || "—", trend: departmentData?.stats ? "Live" : "API needed" };
+        if (stat.label === "Active Groups")
+          return { ...stat, value: departmentData?.stats?.totalGroupAdmins ?? "—", trend: departmentData?.stats ? "Live" : "API needed" };
         if (stat.label === "Upcoming Events")
           return { ...stat, value: String(sourceEvents.filter((event) => new Date(event.date) >= new Date()).length) };
         return stat;
       }),
     };
-  }, [departments.length, myRegistrations.length, role, sourceEvents]);
+  }, [currentUser?.departmentId, departmentData?.stats, departments.length, myRegistrations, role, sourceEvents]);
   const retry = () => window.location.reload();
   if (isLoading)
     return (
@@ -343,7 +352,7 @@ export function DashboardOverview() {
         ) : role === "student" ? (
           <DashboardCard>
             <DashboardCardHeader title="Student Participation" />
-            <DashboardDonut value="68%" label="Participation Rate" segments={[68, 32, 0, 0, 0]} />
+            <DashboardDonut value={studentAttendanceRate === null ? "—" : `${studentAttendanceRate}%`} label={studentAttendanceRate === null ? "API needed" : "Participation Rate"} segments={studentAttendanceRate === null ? [0, 0, 0, 0, 0] : [studentAttendanceRate, 100 - studentAttendanceRate, 0, 0, 0]} />
           </DashboardCard>
         ) : (
           <DashboardCard>
@@ -378,7 +387,7 @@ export function DashboardOverview() {
         ) : role === "department" ? (
           <DashboardCard>
             <DashboardCardHeader title="Student Participation" />
-            <DashboardDonut value="68%" label="Participation Rate" segments={[68, 32, 0, 0, 0]} />
+            <DashboardDonut value={departmentData?.stats?.averageAttendance ? `${Math.round(departmentData.stats.averageAttendance)}%` : "—"} label={departmentData?.stats ? "Participation Rate" : "API needed"} segments={departmentData?.stats ? [Math.round(departmentData.stats.averageAttendance), 100 - Math.round(departmentData.stats.averageAttendance), 0, 0, 0] : [0, 0, 0, 0, 0]} />
           </DashboardCard>
         ) : (
           <DashboardQuickActions actions={view.quick} />
@@ -407,13 +416,13 @@ export function DashboardOverview() {
             <DashboardQuickActions actions={view.quick} />
             <DashboardCard>
               <DashboardCardHeader title="Department Info" />
-              <div className="dashboard-info"><p><span>Computer Science</span><b>—</b></p><p><span>Total Students</span><b>—</b></p><p><span>Active Groups</span><b>{sourceEvents.length ? "—" : 0}</b></p></div>
+              <div className="dashboard-info"><p><span>{departmentData?.name || "Department"}</span><b>{departmentData?.code || "—"}</b></p><p><span>Total Students</span><b>{departmentData?.stats?.totalParticipants?.toLocaleString() || "—"}</b></p><p><span>Active Groups</span><b>{departmentData?.stats?.totalGroupAdmins ?? "—"}</b></p></div>
             </DashboardCard>
           </div>
         ) : (
           <DashboardCard>
-          <DashboardCardHeader title={role === "department" ? "Department Info" : role === "group" ? "Group Info" : "Student Overview"} />
-          <div className="dashboard-info"><p><span>{role === "department" ? "Computer Science" : role === "group" ? "Web Development Club" : "Participation Rate"}</span><b>{role === "department" ? "—" : role === "group" ? "—" : "68%"}</b></p><p><span>{role === "department" ? "Total Students" : role === "group" ? "Total Members" : "Registered Events"}</span><b>{role === "student" ? myRegistrations.length : "—"}</b></p><p><span>{role === "department" ? "Active Groups" : role === "group" ? "Group Events" : "Events Attended"}</span><b>{role === "student" ? "—" : sourceEvents.length}</b></p></div>
+          <DashboardCardHeader title="Group Info" />
+          <div className="dashboard-info"><p><span>Web Development Club</span><b>API needed</b></p><p><span>Total Members</span><b>API needed</b></p><p><span>Group Events</span><b>{sourceEvents.length}</b></p></div>
         </DashboardCard>
         )}
       </DashboardSection>
