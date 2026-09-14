@@ -10,7 +10,6 @@ import {
   CalendarDays,
   ClipboardList,
   Layers3,
-  Megaphone,
   Plus,
   Users,
 } from "lucide-react";
@@ -20,7 +19,6 @@ import {
   DashboardChart,
   DashboardDonut,
   DashboardEventList,
-  DashboardProgress,
   DashboardQuickActions,
   DashboardRegistrationTable,
   DashboardSection,
@@ -228,7 +226,11 @@ export function DashboardOverview() {
     }));
     const mappedRegistrations = (
       role === "student"
-        ? myRegistrations
+        ? myRegistrations.map((registration) => ({
+            name: registration.userName || "Registered student",
+            event: registration.eventTitle || "Event registration",
+            time: registration.registeredAt ? new Date(registration.registeredAt).toLocaleDateString() : "Recently",
+          }))
         : sourceEvents.flatMap((event) =>
             (event.registeredUsers || [])
               .slice(0, 3)
@@ -275,6 +277,10 @@ export function DashboardOverview() {
           return { ...stat, value: registrationsCount.toLocaleString() };
         if (stat.label === "Departments")
           return { ...stat, value: String(departments.length) };
+        if (["Group Members", "Department Students", "Active Groups"].includes(stat.label))
+          return { ...stat, value: "—", trend: "API needed" };
+        if (stat.label === "Upcoming Events")
+          return { ...stat, value: String(sourceEvents.filter((event) => new Date(event.date) >= new Date()).length) };
         return stat;
       }),
     };
@@ -334,16 +340,15 @@ export function DashboardOverview() {
               type="bar"
             />
           </DashboardCard>
+        ) : role === "student" ? (
+          <DashboardCard>
+            <DashboardCardHeader title="Student Participation" />
+            <DashboardDonut value="68%" label="Participation Rate" segments={[68, 32, 0, 0, 0]} />
+          </DashboardCard>
         ) : (
           <DashboardCard>
-            <DashboardCardHeader
-              title={
-                role === "student" ? "My Event Progress" : "Event Participation"
-              }
-            />
-            <DashboardProgress label="Active participation" value={68} />
-            <DashboardProgress label="Registered" value={82} color="green" />
-            <DashboardProgress label="Completed" value={47} color="blue" />
+            <DashboardCardHeader title={role === "department" ? "Events by Type" : "Event Participation"} />
+            <DashboardDonut value={sourceEvents.length} label={role === "department" ? "Events" : "Members"} segments={[sourceEvents.filter((event) => event.category === "Technical").length, sourceEvents.filter((event) => event.category === "Workshop").length, sourceEvents.filter((event) => event.category === "Seminar").length, sourceEvents.filter((event) => event.category === "Cultural").length, sourceEvents.filter((event) => event.category === "Other").length]} />
           </DashboardCard>
         )}
         {role === "admin" ? (
@@ -370,6 +375,11 @@ export function DashboardOverview() {
               ]}
             />
           </DashboardCard>
+        ) : role === "department" ? (
+          <DashboardCard>
+            <DashboardCardHeader title="Student Participation" />
+            <DashboardDonut value="68%" label="Participation Rate" segments={[68, 32, 0, 0, 0]} />
+          </DashboardCard>
         ) : (
           <DashboardQuickActions actions={view.quick} />
         )}
@@ -392,14 +402,19 @@ export function DashboardOverview() {
               />
             </DashboardCard>
           </div>
+        ) : role === "department" ? (
+          <div className="dashboard-stack">
+            <DashboardQuickActions actions={view.quick} />
+            <DashboardCard>
+              <DashboardCardHeader title="Department Info" />
+              <div className="dashboard-info"><p><span>Computer Science</span><b>—</b></p><p><span>Total Students</span><b>—</b></p><p><span>Active Groups</span><b>{sourceEvents.length ? "—" : 0}</b></p></div>
+            </DashboardCard>
+          </div>
         ) : (
           <DashboardCard>
-            <DashboardCardHeader title="Recent Announcements" />
-            <div className="dashboard-empty">
-              <Megaphone size={22} />
-              Announcements API not available yet.
-            </div>
-          </DashboardCard>
+          <DashboardCardHeader title={role === "department" ? "Department Info" : role === "group" ? "Group Info" : "Student Overview"} />
+          <div className="dashboard-info"><p><span>{role === "department" ? "Computer Science" : role === "group" ? "Web Development Club" : "Participation Rate"}</span><b>{role === "department" ? "—" : role === "group" ? "—" : "68%"}</b></p><p><span>{role === "department" ? "Total Students" : role === "group" ? "Total Members" : "Registered Events"}</span><b>{role === "student" ? myRegistrations.length : "—"}</b></p><p><span>{role === "department" ? "Active Groups" : role === "group" ? "Group Events" : "Events Attended"}</span><b>{role === "student" ? "—" : sourceEvents.length}</b></p></div>
+        </DashboardCard>
         )}
       </DashboardSection>
     </>
