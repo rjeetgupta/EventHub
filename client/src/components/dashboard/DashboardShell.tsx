@@ -66,13 +66,13 @@ const roleConfig = {
     welcome: "Here's what's happening in your Computer Science Department.",
     nav: [
       ["Dashboard", "/department", Home],
-      ["Events", "#", CalendarDays],
-      ["Registrations", "#", ClipboardList],
-      ["Students", "#", Users],
-      ["Groups", "#", Users],
-      ["Analytics", "#", BarChart3],
-      ["Notifications", "#", Bell],
-      ["Settings", "#", Settings],
+      ["Events", "/department?view=events", CalendarDays],
+      ["Registrations", "/department?view=registrations", ClipboardList],
+      ["Students", "/department?view=students", Users],
+      ["Groups", "/department?view=groups", Users],
+      ["Analytics", "/department?view=analytics", BarChart3],
+      ["Notifications", "/department?view=notifications", Bell],
+      ["Settings", "/department?view=settings", Settings],
     ],
   },
   admin: {
@@ -351,6 +351,7 @@ export function DashboardChart({
 
 export function DashboardDonut({ value = 48, label = 'Events', segments = [40, 25, 18, 10, 7] }: { value?: string | number; label?: string; segments?: number[] }) { return <div className="dashboard-donut-wrap"><div className="dashboard-donut"><div><strong>{value}</strong><small>{label}</small></div></div><div className="dashboard-legend">{['Technical', 'Cultural', 'Sports', 'Workshop', 'Others'].map((item, index) => <span key={item}><i className={`legend-${index}`} />{item}<b>{segments[index] ?? 0}</b></span>)}</div></div>; }
 export function DashboardSystemOverview({ active = 0, draft = 0, completed = 0, users = '—' }: { active?: number; draft?: number; completed?: number; users?: string | number }) { return <div className="dashboard-system"><p><i className="is-green" />Active Events <b>{active}</b></p><p><i className="is-yellow" />Draft Events <b>{draft}</b></p><p><i className="is-gray" />Completed Events <b>{completed}</b></p><p><i className="is-orange" />Total Users <b>{users}</b></p></div>; }
+export function DashboardInfoRows({ rows }: { rows: [string, string | number][] }) { return <div className="dashboard-info">{rows.map(([label, value]) => <p key={label}><span>{label}</span><b>{value}</b></p>)}</div>; }
 
 export type DashboardEvent = {
   title: string;

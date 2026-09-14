@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import {
   Activity,
@@ -24,6 +24,7 @@ import {
   DashboardSection,
   DashboardStat,
   DashboardSystemOverview,
+  DashboardInfoRows,
   type DashboardEvent,
 } from "./DashboardShell";
 import { useAppSelector } from "@/store/hook";
@@ -188,6 +189,7 @@ const views: Record<string, ViewConfig> = {
 
 export function DashboardOverview() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const role = pathname.includes("student")
     ? "student"
     : pathname.includes("group-admin")
@@ -196,6 +198,7 @@ export function DashboardOverview() {
         ? "department"
       : "admin";
   const studentSection = role === "student" && pathname.split("/")[2];
+  const departmentSection = role === "department" ? searchParams.get("view") : null;
   const {
     departmentEvents,
     allEvents,
@@ -313,10 +316,10 @@ export function DashboardOverview() {
         <button onClick={retry}>Retry</button>
       </DashboardCard>
     );
-  if (studentSection)
+  if (studentSection || departmentSection)
     return (
       <DashboardCard className="dashboard-route-panel">
-        <DashboardCardHeader title={{ events: "Explore Events", registrations: "My Registrations", bookmarks: "My Bookmarks", clubs: "Clubs & Groups", notifications: "Notifications", profile: "Profile", settings: "Settings" }[studentSection] || "Student Dashboard"} action="" />
+        <DashboardCardHeader title={studentSection ? ({ events: "Explore Events", registrations: "My Registrations", bookmarks: "My Bookmarks", clubs: "Clubs & Groups", notifications: "Notifications", profile: "Profile", settings: "Settings" }[studentSection] || "Student Dashboard") : ({ events: "Department Events", registrations: "Registrations", students: "Students", groups: "Groups", analytics: "Analytics", notifications: "Notifications", settings: "Settings" }[departmentSection!] || "Department Dashboard")} action="" />
         <div className="dashboard-route-panel__content">
           {studentSection === "events" && <><h3>Explore Events</h3><p>Browse upcoming campus events and discover experiences that match your interests.</p><DashboardEventList events={view.events} title="Upcoming Events" /></>}
           {studentSection === "registrations" && <><h3>My Registrations</h3><p>You have {myRegistrations.length} registered event{myRegistrations.length === 1 ? "" : "s"}.</p><DashboardRegistrationTable rows={view.registrations} /></>}
@@ -325,6 +328,13 @@ export function DashboardOverview() {
           {studentSection === "notifications" && <><h3>Notifications</h3><p>Your notification center will appear here.</p><span className="dashboard-api-note">API needed</span></>}
           {studentSection === "profile" && <><h3>{currentUser?.fullName || "Student Profile"}</h3><p>{currentUser?.email || "Profile information is not available yet."}</p></>}
           {studentSection === "settings" && <><h3>Settings</h3><p>Account, theme, and notification preferences.</p><span className="dashboard-api-note">Settings panel ready for integration</span></>}
+          {departmentSection === "events" && <><h3>Department Events</h3><p>Manage department events using the same dashboard event data.</p><DashboardEventList events={view.events} title="Department Events" /></>}
+          {departmentSection === "registrations" && <><h3>Registrations</h3><p>Registration records derived from department event data.</p><DashboardRegistrationTable rows={view.registrations} /></>}
+          {departmentSection === "students" && <><h3>Students</h3><p>Student totals are supplied by department analytics when available.</p><DashboardInfoRows rows={[["Total Students", departmentData?.stats?.totalParticipants?.toLocaleString() || "API needed"], ["Average Attendance", departmentData?.stats?.averageAttendance ? `${Math.round(departmentData.stats.averageAttendance)}%` : "API needed"]]} /></>}
+          {departmentSection === "groups" && <><h3>Groups</h3><p>Group administration data is ready for the group API.</p><DashboardInfoRows rows={[["Active Groups", departmentData?.stats?.totalGroupAdmins?.toString() || "API needed"], ["Group Events", String(sourceEvents.length)]]} /></>}
+          {departmentSection === "analytics" && <><h3>Analytics</h3><DashboardDonut value={departmentData?.stats?.averageAttendance ? `${Math.round(departmentData.stats.averageAttendance)}%` : "—"} label="Attendance" /></>}
+          {departmentSection === "notifications" && <><h3>Notifications</h3><p>Notification data is not available in the current API.</p><span className="dashboard-api-note">API needed</span></>}
+          {departmentSection === "settings" && <><h3>Settings</h3><p>Department settings panel ready for integration.</p><span className="dashboard-api-note">API needed</span></>}
         </div>
       </DashboardCard>
     );
