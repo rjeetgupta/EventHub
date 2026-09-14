@@ -194,7 +194,8 @@ export function DashboardOverview() {
       ? "group"
       : pathname.includes("department")
         ? "department"
-        : "admin";
+      : "admin";
+  const studentSection = role === "student" && pathname.split("/")[2];
   const {
     departmentEvents,
     allEvents,
@@ -310,6 +311,21 @@ export function DashboardOverview() {
         <h2>Unable to load dashboard data</h2>
         <p>{error}</p>
         <button onClick={retry}>Retry</button>
+      </DashboardCard>
+    );
+  if (studentSection)
+    return (
+      <DashboardCard className="dashboard-route-panel">
+        <DashboardCardHeader title={{ events: "Explore Events", registrations: "My Registrations", bookmarks: "My Bookmarks", clubs: "Clubs & Groups", notifications: "Notifications", profile: "Profile", settings: "Settings" }[studentSection] || "Student Dashboard"} action="" />
+        <div className="dashboard-route-panel__content">
+          {studentSection === "events" && <><h3>Explore Events</h3><p>Browse upcoming campus events and discover experiences that match your interests.</p><DashboardEventList events={view.events} title="Upcoming Events" /></>}
+          {studentSection === "registrations" && <><h3>My Registrations</h3><p>You have {myRegistrations.length} registered event{myRegistrations.length === 1 ? "" : "s"}.</p><DashboardRegistrationTable rows={view.registrations} /></>}
+          {studentSection === "bookmarks" && <><h3>My Bookmarks</h3><p>Bookmarks will appear here when the bookmarks API is available.</p><span className="dashboard-api-note">API needed</span></>}
+          {studentSection === "clubs" && <><h3>Clubs & Groups</h3><p>Explore clubs and groups across your campus.</p><span className="dashboard-api-note">API needed</span></>}
+          {studentSection === "notifications" && <><h3>Notifications</h3><p>Your notification center will appear here.</p><span className="dashboard-api-note">API needed</span></>}
+          {studentSection === "profile" && <><h3>{currentUser?.fullName || "Student Profile"}</h3><p>{currentUser?.email || "Profile information is not available yet."}</p></>}
+          {studentSection === "settings" && <><h3>Settings</h3><p>Account, theme, and notification preferences.</p><span className="dashboard-api-note">Settings panel ready for integration</span></>}
+        </div>
       </DashboardCard>
     );
   return (
