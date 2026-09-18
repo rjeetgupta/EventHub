@@ -3,6 +3,7 @@ import {
   getEvents,
   getEventById,
   createEvent,
+  saveDraft,
   updateEvent,
   deleteEvent,
   submitForApproval,
@@ -79,6 +80,13 @@ router.post(
   isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(createEventSchema),
   createEvent
+);
+
+router.post(
+  "/draft",
+  verifyJWT,
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
+  saveDraft
 );
 
 router.put(

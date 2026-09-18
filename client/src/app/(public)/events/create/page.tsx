@@ -186,7 +186,7 @@ export default function CreateEventPage() {
       const result = await dispatch(saveEventDraft(data)).unwrap();
 
       toast.success('Draft saved successfully');
-      router.push('/events');
+      router.push(isSuperAdmin ? '/admin?view=events' : '/events');
     } catch (error: any) {
       const errorMessage = error?.message || error || 'Failed to save draft';
       setLocalError(errorMessage);
@@ -207,7 +207,7 @@ export default function CreateEventPage() {
       const result = await dispatch(createEvent(data)).unwrap();
 
       toast.success('Event created and submitted for approval');
-      router.push('/events');
+      router.push(isSuperAdmin ? '/admin?view=events' : '/events');
     } catch (error: any) {
       const errorMessage = error?.message || error || 'Failed to create event';
       setLocalError(errorMessage);

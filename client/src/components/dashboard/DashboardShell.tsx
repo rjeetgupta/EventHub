@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -82,14 +82,14 @@ const roleConfig = {
     welcome: "Here's an overview of what's happening across the college.",
     nav: [
       ["Dashboard", "/admin", Home],
-      ["Events", "#", CalendarDays],
-      ["Departments", "#", Building2],
-      ["Groups", "#", LayoutGrid],
-      ["Users", "#", Users],
-      ["Registrations", "#", ClipboardList],
-      ["Analytics", "#", BarChart3],
-      ["Notifications", "#", Bell],
-      ["Settings", "#", Settings],
+      ["Events", "/admin?view=events", CalendarDays],
+      ["Departments", "/admin?view=departments", Building2],
+      ["Groups", "/admin?view=groups", LayoutGrid],
+      ["Users", "/admin?view=users", Users],
+      ["Registrations", "/admin?view=registrations", ClipboardList],
+      ["Analytics", "/admin?view=analytics", BarChart3],
+      ["Notifications", "/admin?view=notifications", Bell],
+      ["Settings", "/admin?view=settings", Settings],
     ],
   },
 } as const;
@@ -102,6 +102,7 @@ export function DashboardShell({
   role?: DashboardRole;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const activeRole: DashboardRole =
     role ??
     (pathname.includes("student")
@@ -112,6 +113,13 @@ export function DashboardShell({
           ? "department"
           : "admin");
   const config = roleConfig[activeRole];
+  const adminView = activeRole === "admin" ? searchParams.get("view") : null;
+  const adminPageCopy: Record<string, [string, string]> = {
+    analytics: ["Analytics Overview", "Insights and analytics to understand event engagement across the college."],
+    departments: ["Department Management", "Manage departments, admins and their events."],
+    registrations: ["Event Registrations", "View and manage all event registrations across the university."],
+  };
+  const pageCopy = adminView ? adminPageCopy[adminView] : undefined;
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div
@@ -171,7 +179,15 @@ export function DashboardShell({
             <Link
               key={label}
               href={href}
-              className={pathname === href ? "is-active" : ""}
+              className={
+                href === "/admin" && pathname === "/admin"
+                  ? !searchParams.get("view") ? "is-active" : ""
+                  : href.includes("?")
+                    ? pathname === href.split("?")[0] && searchParams.get("view") === new URLSearchParams(href.split("?")[1]).get("view")
+                      ? "is-active"
+                      : ""
+                    : pathname === href ? "is-active" : ""
+              }
             >
               <Icon size={19} />
               <span>{label}</span>
@@ -203,8 +219,8 @@ export function DashboardShell({
       <main className="dashboard-main">
         <div className="dashboard-welcome">
           <div>
-            <h1>Good morning, {config.name}!</h1>
-            <p>{config.welcome}</p>
+            <h1>{pageCopy?.[0] || `Good morning, ${config.name}!`}</h1>
+            <p>{pageCopy?.[1] || config.welcome}</p>
           </div>
           <div className="dashboard-quote">
             “Great events create great opportunities.”<small>— EventHub</small>
@@ -413,14 +429,13 @@ export function DashboardQuickActions({
     <DashboardCard>
       <DashboardCardHeader title="Quick Actions" action="" />
       <div className="dashboard-actions">
-        {actions.map(({ label, icon: Icon }) => (
+          {actions.map(({ label, icon: Icon }) => (
           <button
             key={label}
             onClick={() => window.dispatchEvent(new CustomEvent("dashboard-action", { detail: label }))}
           >
             <Icon size={17} />
             {label}
-            <ChevronRight size={15} />
           </button>
         ))}
       </div>

@@ -47,12 +47,24 @@ const getEventById = asyncHandler(async (req: Request, res: Response) => {
  * @access Group Admin, Department Admin
  */
 const createEvent = asyncHandler(async (req: Request, res: Response) => {
-  console.log("Create Event data : ", req.body.data)
   const event = await eventService.createEvent(req.body, req.user!.id);
 
   res
     .status(201)
     .json(new ApiResponse(201, event, "Event created successfully"));
+});
+
+/**
+ * Save an event as a draft
+ * @route POST /api/v1/events/draft
+ * @access Group Admin, Department Admin, Super Admin
+ */
+const saveDraft = asyncHandler(async (req: Request, res: Response) => {
+  const event = await eventService.saveDraft(req.body, req.user!.id);
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, event, "Event draft saved successfully"));
 });
 
 /**
@@ -127,7 +139,7 @@ const handleApproval = asyncHandler(async (req: Request, res: Response) => {
  * @access Department Admin
  */
 const publishEvent = asyncHandler(async (req: Request, res: Response) => {
-  const event = await eventService.publishEvent(req.params.id);
+  const event = await eventService.publishEvent(req.params.id, req.user!.id);
 
   res
     .status(200)
@@ -278,6 +290,7 @@ export {
   getEvents,
   getEventById,
   createEvent,
+  saveDraft,
   updateEvent,
   deleteEvent,
   submitForApproval,

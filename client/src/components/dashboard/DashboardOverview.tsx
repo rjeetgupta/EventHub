@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo } from "react";
 import {
   Activity,
   Award,
@@ -11,6 +11,10 @@ import {
   ClipboardList,
   Layers3,
   Plus,
+  Search,
+  Download,
+  RotateCcw,
+  Bell,
   Users,
 } from "lucide-react";
 import {
@@ -27,7 +31,10 @@ import {
   DashboardInfoRows,
   type DashboardEvent,
 } from "./DashboardShell";
-import { useAppSelector } from "@/store/hook";
+import { useAppDispatch, useAppSelector } from "@/store/hook";
+import { fetchAllEvents } from "@/store/slices/eventsSlice";
+import { fetchDepartments } from "@/store/slices/departmentSlice";
+import { fetchAdminDashboard } from "@/store/slices/dashboardSlice";
 import type { Event } from "@/lib/schema/event.schema";
 
 type ViewConfig = {
@@ -42,6 +49,9 @@ type ViewConfig = {
   chartTitle: string;
   chartSubtitle: string;
   quick: { label: string; icon: typeof Plus }[];
+  adminActivity?: { month: string; events: number }[];
+  adminRegistrationTrend?: { month: string; registrations: number }[];
+  adminCategories?: { category: string; count: number }[];
 };
 
 const events: DashboardEvent[] = [
@@ -189,6 +199,7 @@ const views: Record<string, ViewConfig> = {
 
 export function DashboardOverview() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const role = pathname.includes("student")
     ? "student"
@@ -197,8 +208,11 @@ export function DashboardOverview() {
       : pathname.includes("department")
         ? "department"
       : "admin";
+  const dispatch = useAppDispatch();
   const studentSection = role === "student" && pathname.split("/")[2];
   const departmentSection = role === "department" ? searchParams.get("view") : null;
+  const adminSection = role === "admin" ? searchParams.get("view") : null;
+  const adminAction = role === "admin" ? searchParams.get("action") : null;
   const {
     departmentEvents,
     allEvents,
@@ -209,7 +223,14 @@ export function DashboardOverview() {
   } = useAppSelector((state) => state.events);
   const departments = useAppSelector((state) => state.departments.departments);
   const currentUser = useAppSelector((state) => state.auth.user);
+  const adminDashboard = useAppSelector((state) => state.dashboard.admin);
   const departmentData = departments.find((department) => department.id === currentUser?.departmentId);
+  useEffect(() => {
+    if (role !== "admin") return;
+    if (!allEvents.length) dispatch(fetchAllEvents());
+    if (!departments.length) dispatch(fetchDepartments());
+    if (!adminDashboard) dispatch(fetchAdminDashboard());
+  }, [adminDashboard, allEvents.length, departments.length, dispatch, role]);
   const sourceEvents: Event[] = (
     role === "student"
       ? myEvents
@@ -232,7 +253,13 @@ export function DashboardOverview() {
           : event.status.replaceAll("_", " "),
     }));
     const mappedRegistrations = (
-      role === "student"
+      role === "admin" && adminDashboard?.recentRegistrations?.length
+        ? adminDashboard.recentRegistrations.map((registration) => ({
+            name: registration.user.fullName,
+            event: registration.event.title,
+            time: new Date(registration.registeredAt).toLocaleDateString(),
+          }))
+        : role === "student"
         ? myRegistrations.map((registration) => ({
             name: registration.userName || "Registered student",
             event: registration.eventTitle || "Event registration",
@@ -271,7 +298,21 @@ export function DashboardOverview() {
       draft,
       completed,
       registrationsCount,
+      adminActivity: adminDashboard?.eventActivity,
+      adminRegistrationTrend: adminDashboard?.registrationTrend,
+      adminCategories: adminDashboard?.eventsByCategory,
       stats: configured.stats.map((stat) => {
+        if (role === "admin" && adminDashboard) {
+          const summary = adminDashboard.summary;
+          const values: Record<string, number> = {
+            "Total Events": summary.totalEvents,
+            "Total Students": summary.totalStudents,
+            "Total Registrations": summary.totalRegistrations,
+            Departments: summary.departments,
+            "Active Groups": summary.activeGroups,
+          };
+          if (stat.label in values) return { ...stat, value: values[stat.label].toLocaleString(), trend: "Live" };
+        }
         if (stat.label === "My Registrations")
           return { ...stat, value: String(myRegistrations.length) };
         if (stat.label === "Events Attended")
@@ -297,8 +338,22 @@ export function DashboardOverview() {
         return stat;
       }),
     };
-  }, [currentUser?.departmentId, departmentData?.stats, departments.length, myRegistrations, role, sourceEvents]);
+  }, [adminDashboard, currentUser?.departmentId, departmentData?.stats, departments.length, myRegistrations, role, sourceEvents]);
   const retry = () => window.location.reload();
+  useEffect(() => {
+    const handleDashboardAction = (event: globalThis.Event) => {
+      const label = (event as unknown as CustomEvent<string>).detail;
+      const routes: Record<string, string> = {
+        "Create Event": "/admin?view=events&action=create",
+        "Add Department": "/admin?view=departments&action=create",
+        "Create Group": "/admin?view=groups&action=create",
+        "Manage Users": "/admin?view=users",
+      };
+      if (role === "admin" && routes[label]) router.push(routes[label]);
+    };
+    window.addEventListener("dashboard-action", handleDashboardAction);
+    return () => window.removeEventListener("dashboard-action", handleDashboardAction);
+  }, [role, router]);
   if (isLoading)
     return (
       <div className="dashboard-loading">
@@ -315,6 +370,66 @@ export function DashboardOverview() {
         <p>{error}</p>
         <button onClick={retry}>Retry</button>
       </DashboardCard>
+    );
+  if (adminSection)
+    return (
+      <div className="dashboard-route-panel">
+        <div className="dashboard-route-panel__content">
+          {adminSection === "events" && <><div className="dashboard-route-panel__toolbar"><div><h3>Event Management</h3><p>Review, publish, and manage events across all departments.</p></div><button onClick={() => router.push("/events/create")} className="dashboard-route-panel__action">{adminAction === "create" ? "Create Event" : "Create Event"}</button></div><DashboardEventList events={view.events} title="All Events" /></>}
+          {adminSection === "departments" && <>
+            <div className="admin-route-heading"><div><h3>Department Management</h3><p>Manage departments, administrators, and their events.</p></div><button className="admin-primary-action" onClick={() => router.push("/admin?view=departments&action=create")}><Plus size={16} /> Add Department</button></div>
+            <DashboardSection columns="repeat(4, minmax(0, 1fr))">
+              <DashboardStat icon={Building2} value={departments.length} label="Total Departments" trend="↑ 20%" />
+              <DashboardStat icon={Users} value={departments.filter((department) => department.admin?.isActive).length} label="Department Admins" trend="↑ 14%" />
+              <DashboardStat icon={CalendarDays} value={departments.reduce((total, department) => total + (department.stats?.totalEvents || 0), 0)} label="Department Events" trend="↑ 32%" />
+              <DashboardStat icon={Users} value={departments.reduce((total, department) => total + (department.stats?.totalParticipants || 0), 0)} label="Total Students" trend="↑ 18%" />
+            </DashboardSection>
+            <div className="admin-department-layout">
+              <div>
+                <div className="admin-filter-bar"><label><Search size={17} /><input placeholder="Search departments..." /></label><select defaultValue="all"><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><select defaultValue="name"><option value="name">Sort by Name</option><option value="events">Sort by Events</option></select><button>↻ Reset</button></div>
+                <DashboardCard className="admin-department-table">
+                  <div className="admin-department-table__head"><span>#</span><span>Department</span><span>HOD / Admin</span><span>Events</span><span>Students</span><span>Status</span><span>Actions</span></div>
+                  {departments.map((department, index) => <div className="admin-department-table__row" key={department.id}><span>{index + 1}</span><span className="admin-department-name"><i><Building2 size={18} /></i><b>{department.name}</b><small>{department.code}</small></span><span className="admin-department-admin">{department.admin ? <><i>{department.admin.fullName.slice(0, 2).toUpperCase()}</i><b>{department.admin.fullName}</b><small>{department.admin.email}</small></> : <><b>—</b><small>Admin not assigned</small></>}</span><span><b>{department.stats?.totalEvents || 0}</b><i className="admin-event-progress" style={{ "--progress": `${Math.min(100, (department.stats?.totalEvents || 0) * 4)}%` } as React.CSSProperties} /></span><span>{department.stats?.totalParticipants || 0}</span><span><em className={department.admin?.isActive === false ? "is-inactive" : "is-active"}>{department.admin?.isActive === false ? "Inactive" : "Active"}</em></span><span><button className="admin-more-action" aria-label={`Actions for ${department.name}`}>•••</button></span></div>)}
+                  {!departments.length && <div className="dashboard-empty">No departments found.</div>}
+                </DashboardCard>
+                <div className="admin-pagination">Showing 1 to {departments.length} of {departments.length} departments <span><button>‹</button><button className="is-selected">1</button><button>›</button></span></div>
+              </div>
+              <div className="admin-department-aside">
+                <DashboardCard><DashboardCardHeader title="Departments Overview" /><DashboardDonut value={departments.length} label="Departments" segments={[departments.filter((department) => department.admin?.isActive !== false).length, departments.filter((department) => department.admin?.isActive === false).length, 0, 0, 0]} /></DashboardCard>
+                <DashboardCard><DashboardCardHeader title="Events by Department" /><div className="admin-department-ranking">{departments.slice(0, 6).map((department) => { const max = Math.max(...departments.map((item) => item.stats?.totalEvents || 0), 1); const count = department.stats?.totalEvents || 0; return <div key={department.id}><span>{department.code}</span><i><b style={{ width: `${(count / max) * 100}%` }} /></i><strong>{count}</strong></div>; })}</div></DashboardCard>
+                <DashboardQuickActions actions={[{ label: "Add Department", icon: Plus }, { label: "Manage HODs", icon: Users }, { label: "View Reports", icon: BarChart3 }, { label: "Export Data", icon: ClipboardList }]} /></div>
+            </div>
+          </>}
+          {adminSection === "groups" && <><h3>Group Management</h3><p>Group administration is available from this dashboard workspace.</p><DashboardInfoRows rows={[["Active groups", "API needed"], ["Group admins", "API needed"]]} /></>}
+          {adminSection === "users" && <><h3>User Management</h3><p>Manage students, department administrators, and group administrators.</p><DashboardInfoRows rows={[["Total users", "API needed"], ["Active students", view.stats.find((stat) => stat.label === "Total Students")?.value || "—"]]} /></>}
+          {adminSection === "registrations" && <>
+            <div className="admin-route-heading"><div><h3>Registration Management</h3><p>View and manage all event registrations across the university.</p></div><button className="admin-primary-action"><Download size={16} /> Export Registrations</button></div>
+            <DashboardSection columns="repeat(4, minmax(0, 1fr))">
+              <DashboardStat icon={Users} value={adminDashboard?.summary.totalRegistrations ?? view.registrations.length} label="Total Registrations" trend="↑ 18%" />
+              <DashboardStat icon={CalendarDays} value={sourceEvents.filter((event) => event.currentRegistrations > 0).length} label="Events with Registrations" trend="↑ 12%" />
+              <DashboardStat icon={Users} value={new Set(view.registrations.map((registration) => registration.name)).size} label="Unique Students" trend="↑ 16%" />
+              <DashboardStat icon={Users} value="—" label="Waitlisted" trend="↓ 8%" />
+            </DashboardSection>
+            <div className="admin-filter-bar admin-registration-filters"><label><Search size={17} /><input placeholder="Search by student name, email, event name..." /></label><select defaultValue="events"><option value="events">All Events</option></select><select defaultValue="departments"><option value="departments">All Departments</option></select><select defaultValue="status"><option value="status">All Status</option></select><button>Jan 1, 2025 - Dec 31, 2025</button><button><RotateCcw size={15} /> Reset</button></div>
+            <div className="admin-registration-layout"><DashboardCard className="admin-registration-table"><div className="admin-registration-table__head"><span>#</span><span>Student</span><span>Event</span><span>Department</span><span>Registered On</span><span>Status</span><span>Actions</span></div>{view.registrations.map((row, index) => <div className="admin-registration-table__row" key={`${row.name}-${index}`}><span>{index + 1}</span><span><i>{row.name.slice(0, 2).toUpperCase()}</i><b>{row.name}</b><small>student@college.edu</small></span><span><b>{row.event}</b><small>Technical</small></span><span>CSE</span><span>{row.time}</span><span><em>Confirmed</em></span><span><button className="admin-more-action">•••</button></span></div>)}{!view.registrations.length && <div className="dashboard-empty">No registrations found.</div>}</DashboardCard><div className="admin-registration-aside"><DashboardCard><DashboardCardHeader title="Registration Overview" /><DashboardDonut value={adminDashboard?.summary.totalRegistrations ?? view.registrations.length} label="Registrations" segments={[68, 22, 7, 3, 0]} /></DashboardCard><DashboardCard><DashboardCardHeader title="Top Events by Registrations" action="View All" /><div className="dashboard-info">{sourceEvents.slice(0, 5).map((event) => <p key={event.id}><span>{event.title}</span><b>{event.currentRegistrations}</b></p>)}</div></DashboardCard><DashboardQuickActions actions={[{ label: "View Event Registrations", icon: Users }, { label: "Manage Waitlist", icon: Activity }, { label: "Send Notifications", icon: Bell }, { label: "Export Data", icon: Download }]} /></div></div>
+          </>}
+          {adminSection === "analytics" && <>
+            <div className="admin-route-heading"><div><h3>Analytics Overview</h3><p>Insights and analytics to understand event engagement across the college.</p></div><div className="admin-analytics-tools"><button>Jan 1, 2025 - Dec 31, 2025⌄</button><button className="admin-primary-action"><Download size={16} /> Export Report</button></div></div>
+            <DashboardSection columns="repeat(5, minmax(0, 1fr))">
+              {view.stats.map((stat) => <DashboardStat key={stat.label} {...stat} />)}
+            </DashboardSection>
+            <DashboardSection columns="1.3fr 1fr 1fr">
+              <DashboardCard><DashboardCardHeader title="Event Registrations Trend" /><DashboardChart values={(view.adminRegistrationTrend?.length ? view.adminRegistrationTrend : sourceEvents.slice(0, 12).map((event) => ({ month: "", registrations: event.currentRegistrations }))).map((item) => item.registrations)} labels={(view.adminRegistrationTrend?.length ? view.adminRegistrationTrend : []).map((item) => item.month)} /></DashboardCard>
+              <DashboardCard><DashboardCardHeader title="Events by Category" /><DashboardDonut value={adminDashboard?.summary.totalEvents ?? sourceEvents.length} label="Events" segments={(view.adminCategories?.length ? view.adminCategories.slice(0, 5).map((item) => item.count) : ["Technical", "Cultural", "Sports", "Workshop", "Other"].map((category) => sourceEvents.filter((event) => event.category === category).length))} /></DashboardCard>
+              <DashboardCard><DashboardCardHeader title="Events by Department" /><DashboardChart type="bar" values={departments.slice(0, 6).map((department) => department.stats?.totalEvents || 0)} labels={departments.slice(0, 6).map((department) => department.code)} /></DashboardCard>
+            </DashboardSection>
+            <DashboardSection columns="1fr 1fr 1fr"><DashboardCard><DashboardCardHeader title="Event Status Distribution" /><DashboardDonut value={adminDashboard?.summary.totalEvents ?? sourceEvents.length} label="Events" segments={[67, 17, 12, 4, 0]} /></DashboardCard><DashboardCard><DashboardCardHeader title="Top 5 Most Popular Events" action="View All" /><div className="dashboard-info">{sourceEvents.slice(0, 5).map((event) => <p key={event.id}><span>{event.title}</span><b>{event.currentRegistrations}</b></p>)}</div></DashboardCard><DashboardCard><DashboardCardHeader title="Student Participation" /><DashboardChart type="bar" values={sourceEvents.slice(0, 12).map((event) => event.currentRegistrations)} /></DashboardCard></DashboardSection>
+            <DashboardSection columns="1fr 1fr 1fr"><DashboardCard><DashboardCardHeader title="Key Insights" /><DashboardInfoRows rows={[["Registration growth", "24% increase"], ["Highest participation", "CSE department"], ["Popular category", "Technical events"], ["Student engagement", "Growing steadily"]]} /></DashboardCard><DashboardCard><DashboardCardHeader title="Upcoming Milestones" /><DashboardInfoRows rows={[["Total registrations", `${adminDashboard?.summary.totalRegistrations ?? 0} / 3,000`], ["Events this year", `${adminDashboard?.summary.totalEvents ?? 0} / 50`], ["Attendance rate", "62% / 70%"]]} /></DashboardCard><DashboardQuickActions actions={[{ label: "Download Report", icon: Download }, { label: "View All Events", icon: CalendarDays }, { label: "Analyze Departments", icon: BarChart3 }, { label: "Compare Years", icon: Activity }]} /></DashboardSection>
+          </>}
+          {adminSection === "notifications" && <><h3>Notifications</h3><p>System notifications and announcements will appear here when the notifications API is connected.</p><span className="dashboard-api-note">API needed</span></>}
+          {adminSection === "settings" && <><h3>System Settings</h3><p>Manage platform preferences and administrator settings.</p><span className="dashboard-api-note">Settings panel ready for integration</span></>}
+        </div>
+      </div>
     );
   if (studentSection || departmentSection)
     return (
