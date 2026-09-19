@@ -100,7 +100,9 @@ export const UpdateDepartmentSchema = z.object({
 // ASSIGN GROUP ADMIN
 
 const AssignGroupAdminBody = z.object({
-  userId: z.string({ error: "User ID is required" }).uuid({ error: "Invalid user ID format" }),
+  userId: z
+    .string({ error: "User ID is required" })
+    .uuid({ error: "Invalid user ID format" }),
 
   permissions: z
     .array(z.enum(Permission), { error: "Permissions array is required" })
@@ -164,6 +166,13 @@ export const ToggleStatusSchema = z.object({
   }),
 });
 
+// UPDATE DEPARTMENT STATUS
+
+export const updateDepartmentStatusSchema = z.object({
+  params: departmentIdSchema.shape.params,
+  body: ToggleStatusSchema.shape.body,
+});
+
 // ANALYTICS FILTERS (QUERY)
 
 const DepartmentAnalyticsFiltersQuery = z.object({
@@ -180,8 +189,15 @@ export const DepartmentAnalyticsFiltersSchema = z.object({
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentBody>;
 export type UpdateDepartmentInput = z.infer<typeof UpdateDepartmentBody>;
 export type AssignGroupAdminInput = z.infer<typeof AssignGroupAdminBody>;
-export type UpdateGroupAdminPermissionsInput = z.infer<typeof UpdateGroupAdminPermissionsBody>;
+export type UpdateGroupAdminPermissionsInput = z.infer<
+  typeof UpdateGroupAdminPermissionsBody
+>;
 export type DepartmentFiltersInput = z.infer<typeof DepartmentFiltersQuery>;
 export type GroupAdminFiltersInput = z.infer<typeof GroupAdminFiltersQuery>;
 export type ToggleStatusInput = z.infer<typeof ToggleStatusSchema>;
-export type DepartmentAnalyticsFiltersInput = z.infer<typeof DepartmentAnalyticsFiltersQuery>;
+export type UpdateDepartmentStatusInput = z.infer<
+  typeof updateDepartmentStatusSchema
+>;
+export type DepartmentAnalyticsFiltersInput = z.infer<
+  typeof DepartmentAnalyticsFiltersQuery
+>;
