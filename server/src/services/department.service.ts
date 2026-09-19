@@ -312,6 +312,58 @@ class DepartmentService {
   }
 
   /**
+   * Activate / deactivate a department by toggling its admin user.
+   * (The Department model has no status column — the admin user's flag is the
+   * source of truth surfaced in the admin dashboard table.)
+   */
+  async setDepartmentStatus(
+    id: string,
+    isActive: boolean
+  ): Promise<DepartmentResponse> {
+    const department = await prisma.department.findUnique({
+      where: { id },
+      include: {
+        users: {
+          where: { role: { name: RoleType.DEPARTMENT_ADMIN } },
+          select: { id: true, fullName: true, email: true, isActive: true, createdAt: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!department) {
+      throw new ApiError(404, "Department not found");
+    }
+
+    const admin = department.users[0];
+    if (!admin) {
+      throw new ApiError(409, "Department has no admin assigned yet");
+    }
+
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { isActive },
+    });
+
+    return {
+      id: department.id,
+      name: department.name,
+      code: department.code,
+      description: department.description ?? undefined,
+      admin: {
+        id: admin.id,
+        fullName: admin.fullName,
+        email: admin.email,
+        isActive,
+        createdAt: admin.createdAt.toISOString(),
+      },
+      stats: await calculateDepartmentStats(department.id),
+      createdAt: department.createdAt.toISOString(),
+      updatedAt: department.updatedAt.toISOString(),
+    };
+  }
+
+  /**
    * Get department by ID with analytics
    */
   async getDepartmentById(id: string): Promise<DepartmentResponse> {

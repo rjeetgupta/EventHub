@@ -5,6 +5,7 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  updateDepartmentStatus,
   getGroupAdmins,
   assignGroupAdmin,
   updateGroupAdminPermissions,
@@ -27,6 +28,7 @@ import {
   departmentIdSchema,
   groupAdminIdSchema,
   ToggleStatusSchema,
+  updateDepartmentStatusSchema,
 } from "../validators/department.validator.js";
 import { UserRole } from "../types/common.types.js";
 
@@ -45,6 +47,7 @@ router.get("/permissions", verifyJWT, getAvailablePermissions);
 router
   .route("/")
   .get(
+    verifyJWT,
     validate(DepartmentFiltersSchema),
     getDepartments
   )
@@ -73,6 +76,15 @@ router
     isAllowedToDo(UserRole.SUPER_ADMIN),
     validate(departmentIdSchema),
     deleteDepartment
+  );
+
+router
+  .route("/:id/status")
+  .patch(
+    verifyJWT,
+    isAllowedToDo(UserRole.SUPER_ADMIN),
+    validate(updateDepartmentStatusSchema),
+    updateDepartmentStatus
   );
 
 // ============================================================================

@@ -94,6 +94,19 @@ export const deleteDepartment = asyncHandler(
   }
 );
 
+export const updateDepartmentStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const department = await departmentService.setDepartmentStatus(
+      req.validated.params.id,
+      req.validated.body.isActive
+    );
+
+    res.status(200).json(
+      new ApiResponse(200, department, "Department status updated successfully")
+    );
+  }
+);
+
 // ============================================================================
 // GROUP ADMIN CONTROLLERS
 // ============================================================================
