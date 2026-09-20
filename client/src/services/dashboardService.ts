@@ -87,6 +87,8 @@ export interface StudentDashboardData {
     totalRegistrations: number;
     attendedEvents: number;
     upcomingRegistered: number;
+    bookmarkedEvents: number;
+    clubsJoined: number;
   };
   recommendedEvents: {
     id: string;
@@ -108,6 +110,7 @@ export interface StudentDashboardData {
   }[];
   announcements: { id: string; title: string; createdAt: string; category: string; department: string }[];
   registeredEventIds: string[];
+  popularClubs: { id: string; name: string; memberCount: number; isMember: boolean }[];
 }
 
 export type DashboardDataByRole = {
