@@ -4,28 +4,20 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bell, CircleUser, Menu } from "lucide-react"
 import { NAVIGATION } from "@/lib/Navigation"
-import { Role } from "@/lib/types/common.types"
 import { Button } from "@/components/ui/button"
 import ThemeToggler from "@/components/common/ThemeToggle"
 import { useAppSelector } from "@/store/hook"
 import UserDropdown from "../UserDropdown"
-
-interface Props {
-  user?: {
-    role: Role
-    name: string
-  }
-}
 
 export default function Navbar() {
   const pathname = usePathname()
 
   const {isAuthenticated, user} = useAppSelector((state) => state.auth)
 
+  // NAVIGATION is public marketing links (no roles) — rendered for guests.
   const visibleNavigation = NAVIGATION.filter(item => {
     if (!item.roles) return true;
     if (!user) return false
-    // Logged-in user
     return item.roles.includes(user?.role)
   })
 

@@ -27,7 +27,6 @@ import {
   dashboardRoleForUser,
   dashboardRoleMeta,
   getDashboardSection,
-  isDashboardRolePath,
   resolveDashboardRole,
   type DashboardRole,
 } from "@/constant/navigation";
@@ -71,10 +70,18 @@ export function DashboardShell({
   // The shell's chrome (sidebar, welcome copy) follows the LOGGED-IN user's
   // role — never the URL — so /admin/departments can't flip it to department.
   const userRole = dashboardRoleForUser(currentUser?.role);
-  const activeRole: DashboardRole = role ?? userRole ?? resolveDashboardRole(pathname);
+  const activeRole: DashboardRole =
+    role ?? userRole ?? resolveDashboardRole(pathname) ?? "admin";
   const meta = dashboardRoleMeta[activeRole];
   const section = getDashboardSection(pathname);
-  const pageCopy = section ? dashboardSectionTitles[section] : undefined;
+  // Students browse events rather than manage them — use role-appropriate copy.
+  const sectionKey =
+    activeRole === "student" && section === "events"
+      ? "explore"
+      : activeRole === "student" && section === "registrations"
+        ? "myRegistrations"
+        : section;
+  const pageCopy = sectionKey ? dashboardSectionTitles[sectionKey] : undefined;
   const displayName = currentUser?.fullName || meta.type;
   const [navOpen, setNavOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -88,12 +95,14 @@ export function DashboardShell({
     if (!isAuthenticated) router.replace("/login");
   }, [isAuthenticated, router]);
 
-  // Role guard: each role may only browse its own dashboard area.
-  // A student opening /admin (or an admin opening /department) is redirected
-  // to their own dashboard home.
+  // Role guard: each role may only browse its own dashboard area. Shared
+  // pages (/approvals, /my-events, /profile) have no URL role — they render
+  // for any logged-in role. A student opening /admin (or an admin opening
+  // /department) is redirected to their own dashboard home.
   useEffect(() => {
     if (!isAuthenticated || !userRole) return;
-    if (!isDashboardRolePath(pathname, userRole)) {
+    const pathRole = resolveDashboardRole(pathname);
+    if (pathRole && pathRole !== userRole) {
       router.replace(dashboardBasePath[userRole]);
     }
   }, [isAuthenticated, pathname, router, userRole]);
