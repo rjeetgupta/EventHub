@@ -318,6 +318,10 @@ class EventService {
 
   /**
    * Update event
+   * - DEPT_ADMIN / SUPER_ADMIN: can update any event in their department,
+   *   including published ones (department events are self-managed).
+   * - GROUP_ADMIN: can only update their own events, and published/ongoing
+   *   ones stay locked (their flow still goes through approval).
    */
   async updateEvent(
     id: string,
@@ -334,15 +338,36 @@ class EventService {
       throw new ApiError(404, "Event not found");
     }
 
-    // Authorization: Only creator or admins can update
-    if (userRole === RoleType.GROUP_ADMIN && event.creatorId !== userId) {
-      throw new ApiError(403, "You can only update your own events");
+    if (userRole === RoleType.DEPARTMENT_ADMIN) {
+      const admin = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { departmentId: true },
+      });
+      if (admin?.departmentId !== event.departmentId) {
+        throw new ApiError(403, "You can only update events in your department");
+      }
+    } else if (userRole === RoleType.GROUP_ADMIN) {
+      if (event.creatorId !== userId) {
+        throw new ApiError(403, "You can only update your own events");
+      }
     }
 
-    // Cannot update published/completed events
-    if ([EventStatus.PUBLISHED, EventStatus.COMPLETED].includes(event.status)) {
+    // Group admins cannot touch published/completed events — those were
+    // already approved. Department admins may edit their live events.
+    const lockedStatuses: EventStatus[] = [
+      EventStatus.PUBLISHED,
+      EventStatus.COMPLETED,
+    ];
+    if (
+      userRole === RoleType.GROUP_ADMIN &&
+      lockedStatuses.includes(event.status)
+    ) {
       throw new ApiError(400, "Cannot update published or completed events");
     }
+
+    // When a department admin edits a published event it stays published;
+    // editing a pending event keeps it pending for review.
+    const nextStatus = data.status ?? undefined;
 
     await prisma.event.update({
       where: { id },
@@ -359,7 +384,7 @@ class EventService {
         }),
         ...(data.maxCapacity && { maxCapacity: data.maxCapacity }),
         ...(data.category && { category: data.category }),
-        ...(data.status && { status: data.status }),
+        ...(nextStatus && { status: nextStatus }),
       },
     });
 
@@ -368,6 +393,9 @@ class EventService {
 
   /**
    * Delete event
+   * - DEPT_ADMIN / SUPER_ADMIN: any event in their department (published
+   *   included — the department owns the event lifecycle).
+   * - GROUP_ADMIN: only their own events, never published/ongoing ones.
    */
   async deleteEvent(id: string, userId: string, userRole: RoleType) {
     const event = await prisma.event.findUnique({ where: { id } });
@@ -376,14 +404,25 @@ class EventService {
       throw new ApiError(404, "Event not found");
     }
 
-    // Authorization
-    if (userRole === RoleType.GROUP_ADMIN && event.creatorId !== userId) {
-      throw new ApiError(403, "You can only delete your own events");
-    }
-
-    // Cannot delete published/ongoing events
-    if ([EventStatus.PUBLISHED, EventStatus.ONGOING].includes(event.status)) {
-      throw new ApiError(400, "Cannot delete published or ongoing events");
+    if (userRole === RoleType.DEPARTMENT_ADMIN) {
+      const admin = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { departmentId: true },
+      });
+      if (admin?.departmentId !== event.departmentId) {
+        throw new ApiError(403, "You can only delete events in your department");
+      }
+    } else if (userRole === RoleType.GROUP_ADMIN) {
+      if (event.creatorId !== userId) {
+        throw new ApiError(403, "You can only delete your own events");
+      }
+      const undeletableStatuses: EventStatus[] = [
+        EventStatus.PUBLISHED,
+        EventStatus.ONGOING,
+      ];
+      if (undeletableStatuses.includes(event.status)) {
+        throw new ApiError(400, "Cannot delete published or ongoing events");
+      }
     }
 
     await prisma.event.delete({ where: { id } });
@@ -469,11 +508,11 @@ class EventService {
       throw new ApiError(404, "Event not found");
     }
 
-    if (
-      ![EventStatus.PENDING_APPROVAL, EventStatus.APPROVED].includes(
-        event.status
-      )
-    ) {
+    const publishableStatuses: EventStatus[] = [
+      EventStatus.PENDING_APPROVAL,
+      EventStatus.APPROVED,
+    ];
+    if (!publishableStatuses.includes(event.status)) {
       throw new ApiError(
         400,
         "Only pending or approved events can be published"

@@ -13,8 +13,10 @@ import asyncHandler from "../utils/asyncHandler.js";
  * @access Public
  */
 const getEvents = asyncHandler(async (req: Request, res: Response) => {
+  // Use the VALIDATED query (parsed numbers/arrays) — raw req.query carries
+  // strings like limit="10" which crash Prisma's take/skip.
   const result = await eventService.getEvents(
-    req.query,
+    req.validated?.query ?? req.query,
     req.user?.id,
     req.user?.role
   );

@@ -489,6 +489,27 @@ class DashboardService {
       (registration) => registration.status === RegistrationStatus.ATTENDED
     ).length;
 
+    const [bookmarkCount, clubsJoined, popularClubs] = await Promise.all([
+      prisma.bookmark.count({ where: { userId } }),
+      prisma.groupMembership.count({ where: { userId } }),
+      // Most-popular groups by membership for the "Popular Clubs" rail.
+      prisma.user.findMany({
+        where: { role: { name: RoleType.GROUP_ADMIN }, isActive: true },
+        orderBy: { membershipsAdmin: { _count: "desc" } },
+        take: 4,
+        select: {
+          id: true,
+          fullName: true,
+          studentID: true,
+          membershipsAdmin: {
+            where: { userId },
+            select: { id: true },
+          },
+          _count: { select: { membershipsAdmin: true } },
+        },
+      }),
+    ]);
+
     return {
       student: {
         fullName: user?.fullName ?? null,
@@ -499,6 +520,8 @@ class DashboardService {
         totalRegistrations: myRegistrations.length,
         attendedEvents: attendedCount,
         upcomingRegistered: upcomingRegistered.length,
+        bookmarkedEvents: bookmarkCount,
+        clubsJoined,
       },
       recommendedEvents,
       upcomingEvents: upcomingRegistered.map((registration) => ({
@@ -514,6 +537,12 @@ class DashboardService {
         department: event.department.name,
       })),
       registeredEventIds: registeredEvents,
+      popularClubs: popularClubs.map((admin) => ({
+        id: admin.id,
+        name: admin.studentID ? `${admin.fullName}'s Group` : admin.fullName,
+        memberCount: admin._count.membershipsAdmin,
+        isMember: admin.membershipsAdmin.length > 0,
+      })),
     };
   }
 }

@@ -112,7 +112,7 @@ router.delete(
 router.post(
   "/:id/submit",
   verifyJWT,
-  isAllowedToDo(UserRole.GROUP_ADMIN),
+  isAllowedToDo(UserRole.GROUP_ADMIN, UserRole.DEPARTMENT_ADMIN, UserRole.SUPER_ADMIN),
   validate(eventIdSchema),
   submitForApproval
 );
