@@ -17,6 +17,10 @@ import {
   PermissionCategory,
   DepartmentAnalyticsFiltersDto,
   DepartmentAnalytics,
+  DepartmentRegistrationsFiltersDto,
+  DepartmentRegistrationsResponse,
+  DerivedRegistrationStatus,
+  DepartmentRegistrationRow,
   CreateDepartmentResponse,
 } from "../types/department.types.js";
 import { Permission, UserRole } from "../types/common.types.js";
@@ -173,6 +177,22 @@ async function calculateDepartmentStats(
     averageAttendance: Math.round(averageAttendance * 10) / 10,
   };
 }
+
+const getAnalyticsMonthKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+/**
+ * Maps the Prisma RegistrationStatus onto the UI status buckets used by the
+ * department registrations screen (Confirmed / Cancelled / Others).
+ */
+export const deriveRegistrationStatus = (
+  status: RegistrationStatus
+): DerivedRegistrationStatus => {
+  if (status === RegistrationStatus.CANCELLED) return "CANCELLED";
+  if (status === RegistrationStatus.ATTENDED) return "CONFIRMED";
+  if (status === RegistrationStatus.REGISTERED) return "CONFIRMED";
+  return "OTHERS"; // ABSENT and any future values
+};
 
 async function calculateGroupAdminStats(
   userId: string,
@@ -912,7 +932,9 @@ class DepartmentService {
   }
 
   /**
-   * Get department analytics
+   * Get department analytics — real aggregations for the queried date range
+   * (defaults to the trailing 12 months). Percent-trend metrics compare the
+   * selected window against the preceding window of equal length.
    */
   async getDepartmentAnalytics(
     departmentId: string,
@@ -926,31 +948,575 @@ class DepartmentService {
       throw new ApiError(404, "Department not found");
     }
 
-    const stats = await calculateDepartmentStats(departmentId);
+    // ---- Resolve the comparison windows -----------------------------------
+    // Default window: the trailing 12 months ending today.
+    const end = filters?.endDate ? new Date(filters.endDate) : new Date();
+    const resolvedStart = filters?.startDate
+      ? new Date(filters.startDate)
+      : new Date(end.getTime() - 365 * 86_400_000);
+    const rangeMs = Math.max(end.getTime() - resolvedStart.getTime(), 86_400_000);
+    const prevEnd = new Date(resolvedStart.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - rangeMs);
+
+    const rangeLabel = `${resolvedStart.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })} - ${end.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })}`;
+
+    const departmentWhere = { departmentId };
+    const dateWhere = { date: { gte: resolvedStart, lte: end } };
+
+    // ---- Core aggregates ---------------------------------------------------
+    const [
+      eventsInRange,
+      registrationsInRange,
+      uniqueStudentsInRange,
+      activeGroups,
+      registrationsAllTime,
+      categoryRows,
+      statusRows,
+      modeRows,
+      topEvents,
+      recentEvents,
+      groupAdmins,
+    ] = await Promise.all([
+      // Events happening in the window (used for monthly buckets)
+      prisma.event.findMany({
+        where: { ...departmentWhere, ...dateWhere },
+        select: { id: true, date: true, maxCapacity: true, currentRegistrations: true },
+      }),
+      prisma.registration.findMany({
+        where: {
+          status: { not: RegistrationStatus.CANCELLED },
+          event: { ...departmentWhere, ...dateWhere },
+        },
+        select: { userId: true, registeredAt: true, status: true },
+      }),
+      prisma.registration.findMany({
+        where: {
+          status: { not: RegistrationStatus.CANCELLED },
+          event: { ...departmentWhere, ...dateWhere },
+        },
+        select: { userId: true },
+        distinct: ["userId"],
+      }),
+      prisma.user.count({
+        where: {
+          departmentId,
+          isActive: true,
+          role: { name: RoleType.GROUP_ADMIN },
+        },
+      }),
+      prisma.registration.count({
+        where: {
+          status: { not: RegistrationStatus.CANCELLED },
+          event: departmentWhere,
+        },
+      }),
+      prisma.event.groupBy({
+        by: ["category"],
+        where: { ...departmentWhere, ...dateWhere },
+        _count: { _all: true },
+        orderBy: { _count: { category: "desc" } },
+      }),
+      prisma.event.groupBy({
+        by: ["status"],
+        where: { ...departmentWhere, ...dateWhere },
+        _count: { _all: true },
+      }),
+      prisma.event.groupBy({
+        by: ["mode"],
+        where: { ...departmentWhere, ...dateWhere },
+        _count: { _all: true },
+        orderBy: { _count: { mode: "desc" } },
+      }),
+      // Top 5 events by registrations inside the window
+      prisma.event.findMany({
+        where: { ...departmentWhere, ...dateWhere },
+        orderBy: { currentRegistrations: "desc" },
+        take: 5,
+        select: { id: true, title: true, currentRegistrations: true, maxCapacity: true },
+      }),
+      // 5 most recently updated events for the "Recent Events" list
+      prisma.event.findMany({
+        where: departmentWhere,
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: { id: true, title: true, date: true, status: true },
+      }),
+      // Group admins of this department (the "groups")
+      prisma.user.findMany({
+        where: {
+          departmentId,
+          isActive: true,
+          role: { name: RoleType.GROUP_ADMIN },
+        },
+        select: {
+          id: true,
+          fullName: true,
+          _count: {
+            select: {
+              membershipsAdmin: true,
+              createdEvents: { where: { departmentId, ...dateWhere } },
+            },
+          },
+        },
+        orderBy: { createdEvents: { _count: "desc" } },
+        take: 5,
+      }),
+    ]);
+
+    // ---- Previous-window numbers for trend percentages ---------------------
+    const [
+      prevEventCount,
+      prevRegistrations,
+      prevUniqueStudents,
+      prevActiveGroups,
+    ] = await Promise.all([
+      prisma.event.count({ where: { ...departmentWhere, date: { gte: prevStart, lte: prevEnd } } }),
+      prisma.registration.count({
+        where: {
+          status: { not: RegistrationStatus.CANCELLED },
+          event: { ...departmentWhere, date: { gte: prevStart, lte: prevEnd } },
+        },
+      }),
+      prisma.registration.findMany({
+        where: {
+          status: { not: RegistrationStatus.CANCELLED },
+          event: { ...departmentWhere, date: { gte: prevStart, lte: prevEnd } },
+        },
+        select: { userId: true },
+        distinct: ["userId"],
+      }),
+      prisma.user.count({
+        where: {
+          departmentId,
+          isActive: true,
+          role: { name: RoleType.GROUP_ADMIN },
+          createdAt: { lte: prevEnd },
+        },
+      }),
+    ]);
+
+    const percentChange = (current: number, previous: number): number =>
+      previous > 0
+        ? Math.round(((current - previous) / previous) * 1000) / 10
+        : current > 0
+          ? 100
+          : 0;
+
+    // ---- Monthly buckets over the queried window ---------------------------
+    const monthBuckets: { key: string; label: string; start: Date; end: Date }[] = [];
+    {
+      const cursor = new Date(Date.UTC(resolvedStart.getUTCFullYear(), resolvedStart.getUTCMonth(), 1));
+      const lastKey = getAnalyticsMonthKey(end);
+      while (getAnalyticsMonthKey(cursor) <= lastKey) {
+        const start = new Date(cursor);
+        const bucketEnd = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+        monthBuckets.push({
+          key: getAnalyticsMonthKey(cursor),
+          label: start.toLocaleString("en-US", { month: "short", timeZone: "UTC" }),
+          start,
+          end: bucketEnd,
+        });
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+      }
+    }
+
+    const monthlyTrend = monthBuckets.map((month) => ({
+      month: month.label,
+      monthKey: month.key,
+      registrations: registrationsInRange.filter(
+        (r) => r.registeredAt >= month.start && r.registeredAt < month.end,
+      ).length,
+      students: new Set(
+        registrationsInRange
+          .filter((r) => r.registeredAt >= month.start && r.registeredAt < month.end)
+          .map((r) => r.userId),
+      ).size,
+      attendees: registrationsInRange.filter(
+        (r) =>
+          r.status === RegistrationStatus.ATTENDED &&
+          r.registeredAt >= month.start &&
+          r.registeredAt < month.end,
+      ).length,
+    }));
+
+    const eventsByMonth = monthBuckets.map((month) => ({
+      month: month.label,
+      monthKey: month.key,
+      count: eventsInRange.filter((event) => event.date >= month.start && event.date < month.end).length,
+    }));
+
+    // ---- Overview + derived rates ------------------------------------------
+    const totalRegistrations = registrationsInRange.length;
+    const totalCapacity = eventsInRange.reduce((sum, event) => sum + event.maxCapacity, 0);
+    const fillRate =
+      totalCapacity > 0
+        ? Math.round((totalRegistrations / totalCapacity) * 1000) / 10
+        : 0;
+
+    const completedEvents = statusRows.find((row) => row.status === EventStatus.COMPLETED)?._count._all ?? 0;
+    const statusTotal = statusRows.reduce((sum, row) => sum + row._count._all, 0);
+
+    const trends = {
+      totalEvents: percentChange(eventsInRange.length, prevEventCount),
+      totalRegistrations: percentChange(totalRegistrations, prevRegistrations),
+      uniqueStudents: percentChange(uniqueStudentsInRange.length, prevUniqueStudents.length),
+      activeGroups: percentChange(activeGroups, prevActiveGroups),
+      fillRate: 0,
+    };
+
+    // ---- Top groups: members + events ---------------------------------------
+    const topGroups = groupAdmins.map((admin) => ({
+      id: admin.id,
+      name: admin.fullName.includes("'") ? admin.fullName : `${admin.fullName}'s Group`,
+      members: admin._count.membershipsAdmin,
+      events: admin._count.createdEvents,
+    }));
+
+    // ---- Insights -----------------------------------------------------------
+    const insights: DepartmentAnalytics["insights"] = [];
+    if (trends.totalRegistrations !== 0) {
+      insights.push({
+        icon: "trend",
+        text: `Registrations ${trends.totalRegistrations > 0 ? "increased" : "decreased"} by ${Math.abs(trends.totalRegistrations)}% compared to the previous period.`,
+      });
+    }
+    const topCategory = categoryRows[0];
+    if (topCategory) {
+      insights.push({
+        icon: "category",
+        text: `${topCategory.category} events are the most popular (${Math.round(
+          (topCategory._count._all / Math.max(statusTotal, 1)) * 100,
+        )}%).`,
+      });
+    }
+    insights.push({
+      icon: "students",
+      text: `${uniqueStudentsInRange.length} unique students participated in department events.`,
+    });
+    insights.push({
+      icon: "rating",
+      text: `Events reached ${fillRate}% of total capacity on average.`,
+    });
+    if (trends.activeGroups !== 0) {
+      insights.push({
+        icon: "activity",
+        text: `Group activity has ${trends.activeGroups > 0 ? "increased" : "decreased"} by ${Math.abs(trends.activeGroups)}%.`,
+      });
+    }
 
     return {
+      range: { start: resolvedStart.toISOString(), end: end.toISOString(), label: rangeLabel },
       overview: {
-        totalEvents: stats.totalEvents,
-        totalParticipants: stats.totalParticipants,
-        averageAttendance: stats.averageAttendance,
+        totalEvents: eventsInRange.length,
+        totalRegistrations,
+        uniqueStudents: uniqueStudentsInRange.length,
+        activeGroups,
+        fillRate,
+        totalParticipants: registrationsAllTime,
+        averageAttendance: totalRegistrations > 0
+          ? Math.round(
+              (registrationsInRange.filter((r) => r.status === RegistrationStatus.ATTENDED).length /
+                totalRegistrations) * 1000,
+            ) / 10
+          : 0,
         completionRate:
-          stats.totalEvents > 0
-            ? (stats.completedEvents / stats.totalEvents) * 100
-            : 0,
-        growthRate: 0,
+          statusTotal > 0 ? Math.round((completedEvents / statusTotal) * 1000) / 10 : 0,
       },
+      trends,
+      monthlyTrend,
+      eventsByMonth,
       eventBreakdown: {
-        byCategory: [],
-        byStatus: [],
-        byMode: [],
+        byCategory: categoryRows.map((row) => ({
+          category: row.category,
+          count: row._count._all,
+          participants: 0,
+        })),
+        byStatus: statusRows
+          .map((row) => ({ status: row.status, count: row._count._all }))
+          .sort((a, b) => b.count - a.count),
+        byMode: modeRows.map((row) => ({ mode: row.mode, count: row._count._all })),
       },
-      participationTrends: [],
+      topEvents: topEvents.map((event) => ({
+        id: event.id,
+        title: event.title,
+        registrations: event.currentRegistrations,
+        capacity: event.maxCapacity,
+      })),
+      topGroups,
+      recentEvents: recentEvents.map((event) => ({
+        id: event.id,
+        title: event.title,
+        date: event.date.toISOString(),
+        status: event.status,
+      })),
+      insights,
+      participationTrends: monthlyTrend.map((entry) => ({
+        date: entry.month,
+        participants: entry.students,
+        events: eventsByMonth.find((m) => m.month === entry.month)?.count ?? 0,
+      })),
       topPerformers: {
-        groupAdmins: [],
-        events: [],
+        groupAdmins: topGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          eventsCreated: group.events,
+          totalParticipants: group.members,
+        })),
+        events: topEvents.map((event) => ({
+          id: event.id,
+          title: event.title,
+          participants: event.currentRegistrations,
+        })),
       },
-      recentActivity: [],
+      recentActivity: recentEvents.map((event) => ({
+        type: "EVENT",
+        description: event.title,
+        timestamp: event.date.toISOString(),
+      })),
     };
+  }
+
+  /**
+   * Department-wide registration records for the registrations screen.
+   * Table rows honor the passed filters; the `summary` block is always
+   * department-wide (minus the eventId filter, which scopes everything).
+   */
+  async getDepartmentRegistrations(
+    departmentId: string,
+    filters?: DepartmentRegistrationsFiltersDto
+  ): Promise<DepartmentRegistrationsResponse> {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!department) {
+      throw new ApiError(404, "Department not found");
+    }
+
+    const {
+      eventId,
+      status,
+      search,
+      group,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      sortOrder = "desc",
+    } = filters || {};
+
+    const eventWhere: any = { departmentId };
+    if (eventId) eventWhere.id = eventId;
+    if (startDate || endDate) {
+      eventWhere.registeredAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        eventWhere.registeredAt.gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        eventWhere.registeredAt.lte = end;
+      }
+    }
+
+    const registrationWhere: any = { event: eventWhere };
+    if (group) registrationWhere.user = { membershipsJoined: { some: { adminId: group } } };
+    if (status) registrationWhere.status = this.statusFilterToPrisma(status);
+
+    const skip = (page - 1) * limit;
+
+    const [rows, total, registrations, statusGroup, uniqueStudents, topEvents, groups, recent, eventsWithFirstRegs] =
+      await Promise.all([
+        prisma.registration.findMany({
+          where: registrationWhere,
+          include: {
+            user: {
+              select: { id: true, fullName: true, email: true, avatar: true, studentID: true, membershipsJoined: { select: { adminId: true } } },
+            },
+            event: { select: { id: true, title: true, date: true, time: true } },
+          },
+          orderBy: { registeredAt: sortOrder },
+          skip,
+          take: limit,
+        }),
+        prisma.registration.count({ where: registrationWhere }),
+        // Full set for summary aggregates (cheap scalar select).
+        prisma.registration.findMany({
+          where: { event: eventId ? { departmentId, id: eventId } : { departmentId } },
+          select: { userId: true, status: true, registeredAt: true, eventId: true },
+        }),
+        prisma.registration.groupBy({
+          by: ["status"],
+          where: { event: eventId ? { departmentId, id: eventId } : { departmentId } },
+          _count: { _all: true },
+        }),
+        prisma.registration.findMany({
+          where: { event: eventId ? { departmentId, id: eventId } : { departmentId } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.event.findMany({
+          where: eventId ? { departmentId, id: eventId } : { departmentId },
+          orderBy: { currentRegistrations: "desc" },
+          take: 5,
+          select: { id: true, title: true, currentRegistrations: true, maxCapacity: true },
+        }),
+        // Group filter options: admins of groups the department's registrants belong to.
+        prisma.user.findMany({
+          where: {
+            departmentId,
+            role: { name: RoleType.GROUP_ADMIN },
+            membershipsAdmin: {
+              some: { user: { registrations: { some: { event: { departmentId } } } } },
+            },
+          },
+          select: { id: true, fullName: true },
+        }),
+        prisma.registration.findMany({
+          where: { event: eventId ? { departmentId, id: eventId } : { departmentId } },
+          orderBy: { registeredAt: "desc" },
+          take: 4,
+          select: {
+            id: true,
+            registeredAt: true,
+            user: { select: { id: true, fullName: true, avatar: true } },
+            event: { select: { id: true, title: true } },
+          },
+        }),
+        // Events whose EARLIEST registration falls in the current month
+        // ("2 new this month" on the Events tile).
+        prisma.event.findMany({
+          where: { departmentId, registrations: { some: {} } },
+          select: {
+            id: true,
+            registrations: {
+              select: { registeredAt: true },
+              orderBy: { registeredAt: "asc" },
+              take: 1,
+            },
+          },
+        }),
+      ]);
+
+    const totalRegistrations = registrations.length;
+
+    // "New this month" = events that started taking registrations this month.
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const newEventsThisMonth = eventsWithFirstRegs.filter(
+      (event) => event.registrations[0] && event.registrations[0].registeredAt >= monthStart,
+    ).length;
+
+    const confirmed = statusGroup.find((row) => row.status === RegistrationStatus.REGISTERED)?._count._all ?? 0;
+    const attended = statusGroup.find((row) => row.status === RegistrationStatus.ATTENDED)?._count._all ?? 0;
+    const cancelled = statusGroup.find((row) => row.status === RegistrationStatus.CANCELLED)?._count._all ?? 0;
+    const others = statusGroup.find((row) => row.status === RegistrationStatus.ABSENT)?._count._all ?? 0;
+
+    // Percent change vs the trailing 30-day window.
+    const now = new Date();
+    const currentWindowStart = new Date(now.getTime() - 30 * 86_400_000);
+    const prevWindowStart = new Date(now.getTime() - 60 * 86_400_000);
+
+    const trendOf = (current: number, previous: number): number =>
+      previous > 0 ? Math.round(((current - previous) / previous) * 1000) / 10 : current > 0 ? 100 : 0;
+
+    const currentRegs = registrations.filter((r) => r.registeredAt >= currentWindowStart);
+    const prevRegs = registrations.filter(
+      (r) => r.registeredAt >= prevWindowStart && r.registeredAt < currentWindowStart,
+    );
+    const currentStudents = new Set(currentRegs.map((r) => r.userId)).size;
+    const prevStudents = new Set(prevRegs.map((r) => r.userId)).size;
+    const currentAttended = currentRegs.filter((r) => r.status === RegistrationStatus.ATTENDED).length;
+    const prevAttended = prevRegs.filter((r) => r.status === RegistrationStatus.ATTENDED).length;
+    const currentCancelled = currentRegs.filter((r) => r.status === RegistrationStatus.CANCELLED).length;
+    const prevCancelled = prevRegs.filter((r) => r.status === RegistrationStatus.CANCELLED).length;
+
+    const groupNameById = new Map(
+      groups.map((admin) => [admin.id, `${admin.fullName.includes("'") ? admin.fullName : `${admin.fullName}'s Group`}`]),
+    );
+
+    const data: DepartmentRegistrationRow[] = rows.map((row) => ({
+      id: row.id,
+      userId: row.user.id,
+      userName: row.user.fullName,
+      userEmail: row.user.email,
+      userAvatar: row.user.avatar ?? undefined,
+      studentID: row.user.studentID ?? undefined,
+      eventId: row.event.id,
+      eventTitle: row.event.title,
+      eventDate: row.event.date.toISOString(),
+      eventTime: row.event.time,
+      group: row.user.membershipsJoined[0]
+        ? {
+            id: row.user.membershipsJoined[0].adminId,
+            name: groupNameById.get(row.user.membershipsJoined[0].adminId) ?? "Group",
+          }
+        : null,
+      status: deriveRegistrationStatus(row.status),
+      rawStatus: row.status,
+      registeredAt: row.registeredAt.toISOString(),
+      attendedAt: row.attendedAt?.toISOString() ?? null,
+      cancelledAt: row.cancelledAt?.toISOString() ?? null,
+    }));
+
+    return {
+      data,
+      summary: {
+        totalRegistrations,
+        uniqueStudents: uniqueStudents.length,
+        events: new Set(registrations.map((r) => r.eventId)).size,
+        newEventsThisMonth,
+        confirmed,
+        attended,
+        cancelled,
+        others,
+        trends: {
+          totalRegistrations: trendOf(currentRegs.length, prevRegs.length),
+          uniqueStudents: trendOf(currentStudents, prevStudents),
+          attended: trendOf(currentAttended, prevAttended),
+          cancelled: trendOf(currentCancelled, prevCancelled),
+        },
+        groups: groups.map((admin) => ({ id: admin.id, name: groupNameById.get(admin.id) ?? admin.fullName })),
+        topEvents: topEvents.map((event) => ({
+          id: event.id,
+          title: event.title,
+          registrations: event.currentRegistrations,
+          capacity: event.maxCapacity,
+        })),
+        recentRegistrations: recent.map((row) => ({
+          id: row.id,
+          userName: row.user.fullName,
+          userAvatar: row.user.avatar ?? undefined,
+          eventId: row.event.id,
+          eventTitle: row.event.title,
+          registeredAt: row.registeredAt.toISOString(),
+        })),
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /** "CONFIRMED" matches REGISTERED or ATTENDED; the rest map 1:1. */
+  private statusFilterToPrisma(status: DerivedRegistrationStatus) {
+    if (status === "CONFIRMED") {
+      return { in: [RegistrationStatus.REGISTERED, RegistrationStatus.ATTENDED] };
+    }
+    if (status === "CANCELLED") return RegistrationStatus.CANCELLED;
+    return RegistrationStatus.ABSENT;
   }
 }
 

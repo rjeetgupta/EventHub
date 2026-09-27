@@ -4,7 +4,11 @@
  * ============================================================================
  */
 
-import { RoleType, PermissionType } from "../../generated/prisma/enums.js";
+import {
+  RoleType,
+  PermissionType,
+  RegistrationStatus,
+} from "../../generated/prisma/enums.js";
 import { Permission, UserRole } from "./common.types.js";
 
 // ============================================================================
@@ -112,6 +116,8 @@ export interface DepartmentStats {
   totalEvents: number;
   upcomingEvents: number;
   completedEvents: number;
+  /** Counted in calculateDepartmentStats; optional because some responses omit it. */
+  pendingApproval?: number;
   totalParticipants: number;
   totalGroupAdmins: number;
   averageAttendance: number;
@@ -149,13 +155,44 @@ export interface DepartmentAnalyticsFiltersDto {
 }
 
 export interface DepartmentAnalytics {
+  /** Queried window (ISO bounds + human label shown in the header chip). */
+  range: {
+    start: string;
+    end: string;
+    label: string;
+  };
   overview: {
     totalEvents: number;
+    totalRegistrations: number;
+    uniqueStudents: number;
+    activeGroups: number;
+    /** Mean registrations/capacity across events in range (0-100). */
+    fillRate: number;
     totalParticipants: number;
     averageAttendance: number;
     completionRate: number;
-    growthRate: number;
   };
+  /** Percent change vs the preceding window of equal length, per metric. */
+  trends: {
+    totalEvents: number;
+    totalRegistrations: number;
+    uniqueStudents: number;
+    activeGroups: number;
+    fillRate: number;
+  };
+  monthlyTrend: Array<{
+    month: string;
+    /** yyyy-mm bucket key, lets the UI filter rolling windows by calendar year. */
+    monthKey: string;
+    registrations: number;
+    students: number;
+    attendees: number;
+  }>;
+  eventsByMonth: Array<{
+    month: string;
+    monthKey: string;
+    count: number;
+  }>;
   eventBreakdown: {
     byCategory: Array<{
       category: string;
@@ -171,6 +208,29 @@ export interface DepartmentAnalytics {
       count: number;
     }>;
   };
+  topEvents: Array<{
+    id: string;
+    title: string;
+    registrations: number;
+    capacity: number;
+  }>;
+  topGroups: Array<{
+    id: string;
+    name: string;
+    members: number;
+    events: number;
+  }>;
+  recentEvents: Array<{
+    id: string;
+    title: string;
+    date: string;
+    status: string;
+  }>;
+  insights: Array<{
+    icon: string;
+    text: string;
+  }>;
+  /** Kept for backward compatibility with earlier consumers. */
   participationTrends: Array<{
     date: string;
     participants: number;
@@ -195,6 +255,99 @@ export interface DepartmentAnalytics {
     timestamp: string;
     metadata?: Record<string, any>;
   }>;
+}
+
+// ============================================================================
+// REGISTRATIONS TYPES
+// ============================================================================
+
+/**
+ * UI status buckets for the department registrations screen. The Prisma
+ * schema only has REGISTERED | CANCELLED | ATTENDED | ABSENT (no pending or
+ * waitlisted states), so the UI groups them:
+ *   REGISTERED / ATTENDED → CONFIRMED, CANCELLED → CANCELLED, ABSENT → OTHERS.
+ */
+export type DerivedRegistrationStatus = "CONFIRMED" | "CANCELLED" | "OTHERS";
+
+export interface DepartmentRegistrationsFiltersDto {
+  eventId?: string;
+  status?: DerivedRegistrationStatus;
+  /** Matches student name, student email or event title. */
+  search?: string;
+  /** GroupAdmin (membership admin) user id. */
+  group?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+  /** Sort direction for registeredAt. */
+  sortOrder?: "asc" | "desc";
+}
+
+export interface DepartmentRegistrationRow {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userAvatar?: string;
+  studentID?: string;
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;
+  eventTime: string;
+  /** Derived from the student's GroupMembership admin (no direct link in schema). */
+  group: { id: string; name: string } | null;
+  status: DerivedRegistrationStatus;
+  rawStatus: RegistrationStatus;
+  registeredAt: string;
+  attendedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface DepartmentRegistrationsResponse {
+  data: DepartmentRegistrationRow[];
+  /** Department-wide aggregates, intentionally unaffected by table filters. */
+  summary: {
+    totalRegistrations: number;
+    uniqueStudents: number;
+    /** Distinct events that have at least one registration. */
+    events: number;
+    /** Events that received their first registrations this calendar month. */
+    newEventsThisMonth: number;
+    confirmed: number;
+    attended: number;
+    cancelled: number;
+    others: number;
+    /** Percent change vs the trailing 30-day window. */
+    trends: {
+      totalRegistrations: number;
+      uniqueStudents: number;
+      attended: number;
+      cancelled: number;
+    };
+    /** Group filter options (membership admins of registered students). */
+    groups: { id: string; name: string }[];
+    topEvents: {
+      id: string;
+      title: string;
+      registrations: number;
+      capacity: number;
+    }[];
+    recentRegistrations: {
+      id: string;
+      userName: string;
+      userAvatar?: string;
+      eventId: string;
+      eventTitle: string;
+      registeredAt: string;
+    }[];
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 // ============================================================================

@@ -184,6 +184,27 @@ export const DepartmentAnalyticsFiltersSchema = z.object({
   query: DepartmentAnalyticsFiltersQuery,
 });
 
+// DEPARTMENT REGISTRATIONS FILTERS (QUERY)
+
+const DepartmentRegistrationsFiltersQuery = z.object({
+  /** Scope everything to a single event ("Manage Registrations" deep link). */
+  eventId: z.uuid("Invalid event ID").optional(),
+  /** UI status buckets (see deriveRegistrationStatus). */
+  status: z.enum(["CONFIRMED", "CANCELLED", "OTHERS"]).optional(),
+  search: z.string().trim().optional(),
+  /** GroupAdmin user id (membership admin). */
+  group: z.uuid("Invalid group ID").optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(10),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
+export const DepartmentRegistrationsFiltersSchema = z.object({
+  query: DepartmentRegistrationsFiltersQuery,
+});
+
 // TYPE EXPORTS
 
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentBody>;
@@ -200,4 +221,7 @@ export type UpdateDepartmentStatusInput = z.infer<
 >;
 export type DepartmentAnalyticsFiltersInput = z.infer<
   typeof DepartmentAnalyticsFiltersQuery
+>;
+export type DepartmentRegistrationsFiltersInput = z.infer<
+  typeof DepartmentRegistrationsFiltersQuery
 >;

@@ -13,6 +13,7 @@ import {
   toggleGroupAdminStatus,
   getAvailablePermissions,
   getDepartmentAnalytics,
+  getDepartmentRegistrations,
 } from "../controllers/department.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { isAllowedToDo } from "../middlewares/isAllowed.middleware.js";
@@ -25,6 +26,7 @@ import {
   DepartmentFiltersSchema,
   GroupAdminFiltersSchema,
   DepartmentAnalyticsFiltersSchema,
+  DepartmentRegistrationsFiltersSchema,
   departmentIdSchema,
   groupAdminIdSchema,
   ToggleStatusSchema,
@@ -98,6 +100,23 @@ router.get(
   validate(departmentIdSchema),
   validate(DepartmentAnalyticsFiltersSchema),
   getDepartmentAnalytics
+);
+
+// ============================================================================
+// GROUP ADMIN MANAGEMENT
+// ============================================================================
+
+// ============================================================================
+// REGISTRATIONS
+// ============================================================================
+
+router.get(
+  "/:id/registrations",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(departmentIdSchema),
+  validate(DepartmentRegistrationsFiltersSchema),
+  getDepartmentRegistrations
 );
 
 // ============================================================================

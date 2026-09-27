@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import departmentService from "../services/department.service.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { UserRole } from "../types/common.types.js";
 
 
 export const getDepartments = asyncHandler(
@@ -206,6 +207,33 @@ export const getDepartmentAnalytics = asyncHandler(
 
     res.status(200).json(
       new ApiResponse(200, analytics, "Analytics fetched successfully")
+    );
+  }
+);
+
+export const getDepartmentRegistrations = asyncHandler(
+  async (req: Request, res: Response) => {
+    const user = req.user;
+
+    // Department admins may only browse their own department's registrations.
+    if (
+      user?.role === UserRole.DEPARTMENT_ADMIN &&
+      user.departmentId &&
+      user.departmentId !== req.validated.params.id
+    ) {
+      res.status(403).json(
+        new ApiResponse(403, null, "You can only view your own department's registrations")
+      );
+      return;
+    }
+
+    const result = await departmentService.getDepartmentRegistrations(
+      req.validated.params.id,
+      req.validated.query
+    );
+
+    res.status(200).json(
+      new ApiResponse(200, result, "Registrations fetched successfully")
     );
   }
 );
