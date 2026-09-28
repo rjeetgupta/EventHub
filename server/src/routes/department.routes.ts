@@ -14,6 +14,9 @@ import {
   getAvailablePermissions,
   getDepartmentAnalytics,
   getDepartmentRegistrations,
+  getDepartmentStudents,
+  createDepartmentStudent,
+  toggleDepartmentStudentStatus,
 } from "../controllers/department.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { isAllowedToDo } from "../middlewares/isAllowed.middleware.js";
@@ -27,6 +30,9 @@ import {
   GroupAdminFiltersSchema,
   DepartmentAnalyticsFiltersSchema,
   DepartmentRegistrationsFiltersSchema,
+  DepartmentStudentsFiltersSchema,
+  CreateDepartmentStudentSchema,
+  DepartmentStudentStatusSchema,
   departmentIdSchema,
   groupAdminIdSchema,
   ToggleStatusSchema,
@@ -117,6 +123,36 @@ router.get(
   validate(departmentIdSchema),
   validate(DepartmentRegistrationsFiltersSchema),
   getDepartmentRegistrations
+);
+
+// ============================================================================
+// STUDENTS
+// ============================================================================
+
+router.get(
+  "/:id/students",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(departmentIdSchema),
+  validate(DepartmentStudentsFiltersSchema),
+  getDepartmentStudents
+);
+
+router.post(
+  "/:id/students",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(departmentIdSchema),
+  validate(CreateDepartmentStudentSchema),
+  createDepartmentStudent
+);
+
+router.patch(
+  "/:id/students/:studentId/status",
+  verifyJWT,
+  isAllowedToDo(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_ADMIN),
+  validate(DepartmentStudentStatusSchema),
+  toggleDepartmentStudentStatus
 );
 
 // ============================================================================

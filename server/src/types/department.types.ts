@@ -351,6 +351,111 @@ export interface DepartmentRegistrationsResponse {
 }
 
 // ============================================================================
+// STUDENTS TYPES
+// ============================================================================
+
+/**
+ * Participation tier shown on the students screen. Derived (no column):
+ *   - INACTIVE: deactivated account, or no department registration in the
+ *     trailing ~180 days
+ *   - TOP_CONTRIBUTOR: 5+ department events joined
+ *   - ACTIVE: everything else
+ */
+export type DepartmentStudentStatus = "ACTIVE" | "INACTIVE" | "TOP_CONTRIBUTOR";
+
+export interface DepartmentStudentsFiltersDto {
+  search?: string;
+  year?: string;
+  section?: string;
+  /** "active" | "inactive" | "top" (participation status filter). */
+  status?: "active" | "inactive" | "top";
+  page?: number;
+  limit?: number;
+  /** Sort by eventsJoined desc, or by name. */
+  sortBy?: "eventsJoined" | "name" | "joinedAt";
+  sortOrder?: "asc" | "desc";
+}
+
+export interface DepartmentStudentRow {
+  id: string;
+  fullName: string;
+  email: string;
+  avatar?: string;
+  studentID?: string;
+  /** Derived from the admission year in studentID (falls back to joined year). */
+  year: string;
+  /** Stable A/B/C bucket derived from the roll number (presentation only). */
+  section: string;
+  /** Non-cancelled registrations across the department's events (all time). */
+  eventsJoined: number;
+  /** Same, but registered within the trailing semester window (~6 months). */
+  eventsJoinedThisSemester: number;
+  lastRegisteredAt: string | null;
+  status: DepartmentStudentStatus;
+  isActive: boolean;
+  joinedAt: string;
+}
+
+export interface DepartmentStudentsResponse {
+  data: DepartmentStudentRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    /** Count AFTER search/year/section/status filters. */
+    total: number;
+    totalPages: number;
+  };
+  /** Department-wide aggregates, unaffected by table filters. */
+  summary: {
+    totalStudents: number;
+    activeStudents: number;
+    eventParticipants: number;
+    topContributors: number;
+    /** Percent change vs the preceding ~6-month window. */
+    trends: {
+      totalStudents: number;
+      activeStudents: number;
+      eventParticipants: number;
+      topContributors: number;
+    };
+    /** Students per derived year, for the overview donut. */
+    yearDistribution: { year: string; count: number }[];
+    /**
+     * Students per events-joined bucket [0, 1-2, 3-5, 6-10, 10+],
+     * all-time and within the trailing semester window.
+     */
+    participation: {
+      allTime: number[];
+      thisSemester: number[];
+    };
+    /** Top 5 students by department events joined. */
+    topParticipants: {
+      id: string;
+      fullName: string;
+      email: string;
+      avatar?: string;
+      eventsJoined: number;
+    }[];
+  };
+}
+
+export interface CreateDepartmentStudentDto {
+  fullName: string;
+  email: string;
+  studentID?: string;
+  password: string;
+  isActive?: boolean;
+}
+
+export interface CreatedDepartmentStudent {
+  id: string;
+  fullName: string;
+  email: string;
+  studentID?: string;
+  isActive: boolean;
+}
+
+// ============================================================================
 // PAGINATED RESPONSES
 // ============================================================================
 

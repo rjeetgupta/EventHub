@@ -237,3 +237,61 @@ export const getDepartmentRegistrations = asyncHandler(
     );
   }
 );
+
+// ============================================================================
+// STUDENTS CONTROLLERS
+// ============================================================================
+
+export const getDepartmentStudents = asyncHandler(
+  async (req: Request, res: Response) => {
+    const user = req.user;
+
+    // Department admins may only browse their own department's students.
+    if (
+      user?.role === UserRole.DEPARTMENT_ADMIN &&
+      user.departmentId &&
+      user.departmentId !== req.validated.params.id
+    ) {
+      res.status(403).json(
+        new ApiResponse(403, null, "You can only view your own department's students")
+      );
+      return;
+    }
+
+    const result = await departmentService.getDepartmentStudents(
+      req.validated.params.id,
+      req.validated.query
+    );
+
+    res.status(200).json(
+      new ApiResponse(200, result, "Students fetched successfully")
+    );
+  }
+);
+
+export const createDepartmentStudent = asyncHandler(
+  async (req: Request, res: Response) => {
+    const created = await departmentService.createDepartmentStudent(
+      req.validated.params.id,
+      req.validated.body
+    );
+
+    res.status(201).json(
+      new ApiResponse(201, created, "Student added successfully")
+    );
+  }
+);
+
+export const toggleDepartmentStudentStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const updated = await departmentService.toggleDepartmentStudentStatus(
+      req.validated.params.id,
+      req.validated.params.studentId,
+      req.validated.body.isActive
+    );
+
+    res.status(200).json(
+      new ApiResponse(200, updated, "Student status updated successfully")
+    );
+  }
+);

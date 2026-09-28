@@ -21,6 +21,12 @@ import {
   DepartmentRegistrationsResponse,
   DerivedRegistrationStatus,
   DepartmentRegistrationRow,
+  DepartmentStudentsFiltersDto,
+  DepartmentStudentsResponse,
+  DepartmentStudentRow,
+  DepartmentStudentStatus,
+  CreateDepartmentStudentDto,
+  CreatedDepartmentStudent,
   CreateDepartmentResponse,
 } from "../types/department.types.js";
 import { Permission, UserRole } from "../types/common.types.js";
@@ -192,6 +198,78 @@ export const deriveRegistrationStatus = (
   if (status === RegistrationStatus.ATTENDED) return "CONFIRMED";
   if (status === RegistrationStatus.REGISTERED) return "CONFIRMED";
   return "OTHERS"; // ABSENT and any future values
+};
+
+/** Shared "no department linked" error for department-scoped student queries. */
+const departmentScope = async (departmentId?: string | null) => {
+  if (!departmentId) {
+    throw new ApiError(400, "User must belong to a department");
+  }
+  return departmentId;
+};
+
+/** Year label derived from the admission year encoded in a roll number. */
+const deriveYearLabel = (studentID: string | null | undefined): string => {
+  const match = studentID?.match(/(20\d{2})/);
+  if (!match) return "Other";
+  const admissionYear = Number(match[1]);
+  const currentYear = new Date().getFullYear();
+  const academicYear = currentYear + (new Date().getMonth() >= 5 ? 0 : -1);
+  const yearOfStudy = academicYear - admissionYear + 1;
+  if (yearOfStudy < 1) return "1st Year";
+  if (yearOfStudy === 1) return "1st Year";
+  if (yearOfStudy === 2) return "2nd Year";
+  if (yearOfStudy === 3) return "3rd Year";
+  if (yearOfStudy === 4) return "4th Year";
+  return "Alumni";
+};
+
+/** Stable A/B/C section bucket from the roll number (presentation only). */
+const deriveSection = (studentID: string | null | undefined): string => {
+  const digits = studentID?.replace(/\D/g, "");
+  if (!digits) return "—";
+  const last = Number(digits[digits.length - 1]);
+  return last <= 3 ? "A" : last <= 6 ? "B" : "C";
+};
+
+/**
+ * Participation tier for the students screen (see DepartmentStudentStatus).
+ * `semesterAgo` bounds the "joined this semester" window (~6 months).
+ */
+const deriveStudentMeta = (
+  student: {
+    isActive: boolean;
+    studentID: string | null;
+    registrations: { status: RegistrationStatus; registeredAt: Date }[];
+  },
+  semesterAgo: Date
+): { year: string; section: string; eventsJoined: number; eventsJoinedThisSemester: number; status: DepartmentStudentStatus } => {
+  const joined = student.registrations.filter(
+    (registration) => registration.status !== RegistrationStatus.CANCELLED
+  );
+  const thisSemester = joined.filter(
+    (registration) => registration.registeredAt >= semesterAgo
+  ).length;
+  const lastRegisteredAt = joined.reduce<Date | null>(
+    (latest, registration) =>
+      !latest || registration.registeredAt > latest ? registration.registeredAt : latest,
+    null
+  );
+
+  let status: DepartmentStudentStatus = "ACTIVE";
+  if (!student.isActive || !lastRegisteredAt || lastRegisteredAt < semesterAgo) {
+    status = "INACTIVE";
+  } else if (joined.length >= 5) {
+    status = "TOP_CONTRIBUTOR";
+  }
+
+  return {
+    year: deriveYearLabel(student.studentID),
+    section: deriveSection(student.studentID),
+    eventsJoined: joined.length,
+    eventsJoinedThisSemester: thisSemester,
+    status,
+  };
 };
 
 async function calculateGroupAdminStats(
@@ -1507,6 +1585,320 @@ class DepartmentService {
         total,
         totalPages: Math.ceil(total / limit) || 1,
       },
+    };
+  }
+
+  /**
+   * Department students with derived year/section/participation metadata for
+   * the students screen. Rows honor the filters; the `summary` block is
+   * always department-wide.
+   */
+  async getDepartmentStudents(
+    departmentId: string,
+    filters?: DepartmentStudentsFiltersDto
+  ): Promise<DepartmentStudentsResponse> {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!department) {
+      throw new ApiError(404, "Department not found");
+    }
+
+    const {
+      search,
+      year,
+      section,
+      status,
+      page = 1,
+      limit = 10,
+      sortBy = "eventsJoined",
+      sortOrder = "desc",
+    } = filters || {};
+
+    const semesterAgo = new Date(Date.now() - 180 * 86_400_000);
+
+    // Where used for both the paged query and summary counts.
+    const baseWhere: any = {
+      departmentId,
+      role: { name: RoleType.STUDENT },
+    };
+    if (search) {
+      baseWhere.OR = [
+        { fullName: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { studentID: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [students, total] = await Promise.all([
+      prisma.user.findMany({
+        where: baseWhere,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatar: true,
+          studentID: true,
+          isActive: true,
+          createdAt: true,
+          registrations: {
+            select: { status: true, registeredAt: true },
+          },
+        },
+        orderBy: { createdAt: sortOrder },
+      }),
+      prisma.user.count({ where: baseWhere }),
+    ]);
+
+    // Derive year/section/participation before filtering and paginating.
+    const derived = students.map((student) => {
+      const meta = deriveStudentMeta(student, semesterAgo);
+      return {
+        student,
+        meta,
+      };
+    });
+
+    const filtered = derived.filter(({ meta }) => {
+      if (year && year !== "all" && meta.year !== year) return false;
+      if (section && section !== "all" && meta.section !== section) return false;
+      if (status === "active" && meta.status !== "ACTIVE") return false;
+      if (status === "inactive" && meta.status !== "INACTIVE") return false;
+      if (status === "top" && meta.status !== "TOP_CONTRIBUTOR") return false;
+      return true;
+    });
+
+    filtered.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.student.fullName.localeCompare(b.student.fullName);
+      }
+      if (sortBy === "joinedAt") {
+        return (
+          new Date(a.student.createdAt).getTime() -
+          new Date(b.student.createdAt).getTime()
+        );
+      }
+      return a.meta.eventsJoined - b.meta.eventsJoined;
+    });
+    if (sortOrder === "desc") filtered.reverse();
+
+    const skip = (page - 1) * limit;
+    const paginated = filtered.slice(skip, skip + limit);
+
+    const data: DepartmentStudentRow[] = paginated.map(({ student, meta }) => ({
+      id: student.id,
+      fullName: student.fullName,
+      email: student.email,
+      avatar: student.avatar ?? undefined,
+      studentID: student.studentID ?? undefined,
+      ...meta,
+      lastRegisteredAt:
+        student.registrations
+          .filter((r) => r.status !== RegistrationStatus.CANCELLED)
+          .map((r) => r.registeredAt)
+          .sort()
+          .pop()?.toISOString() ?? null,
+      isActive: student.isActive,
+      joinedAt: student.createdAt.toISOString(),
+    }));    // ---- Department-wide summary (unaffected by table filters) -------------
+    const allDerived = derived;
+    const activeStudents = allDerived.filter(({ meta }) => meta.status === "ACTIVE").length;
+    const eventParticipants = allDerived.filter(({ meta }) => meta.eventsJoined > 0).length;
+    const topContributors = allDerived.filter(({ meta }) => meta.status === "TOP_CONTRIBUTOR").length;
+
+    // ---- Right-rail aggregates (year donut, participation buckets, top 5) --
+    const yearOrder = ["1st Year", "2nd Year", "3rd Year", "4th Year", "Alumni", "Other"];
+    const yearCounts = new Map<string, number>();
+    allDerived.forEach(({ meta }) => {
+      yearCounts.set(meta.year, (yearCounts.get(meta.year) ?? 0) + 1);
+    });
+    const yearDistribution = [...yearCounts.entries()]
+      .map(([yearLabel, count]) => ({ year: yearLabel, count }))
+      .sort(
+        (a, b) =>
+          yearOrder.indexOf(a.year) - yearOrder.indexOf(b.year) || b.count - a.count
+      );
+
+    const participation = [
+      { min: 0, max: 0 },
+      { min: 1, max: 2 },
+      { min: 3, max: 5 },
+      { min: 6, max: 10 },
+      { min: 11, max: Infinity },
+    ].map((bucket) => ({
+      allTime: allDerived.filter(
+        ({ meta }) => meta.eventsJoined >= bucket.min && meta.eventsJoined <= bucket.max
+      ).length,
+      thisSemester: allDerived.filter(
+        ({ meta }) =>
+          meta.eventsJoinedThisSemester >= bucket.min &&
+          meta.eventsJoinedThisSemester <= bucket.max
+      ).length,
+    }));
+
+    const topParticipants = [...allDerived]
+      .sort((a, b) => b.meta.eventsJoined - a.meta.eventsJoined)
+      .slice(0, 5)
+      .map(({ student, meta }) => ({
+        id: student.id,
+        fullName: student.fullName,
+        email: student.email,
+        avatar: student.avatar ?? undefined,
+        eventsJoined: meta.eventsJoined,
+      }));
+
+    // New joins this semester vs the preceding semester window.
+    const prevWindowStart = new Date(Date.now() - 365 * 86_400_000);
+    const newThisSemester = allDerived.filter(
+      ({ student }) => new Date(student.createdAt) >= semesterAgo
+    ).length;
+    const newPrevSemester = allDerived.filter(
+      ({ student }) =>
+        new Date(student.createdAt) >= prevWindowStart &&
+        new Date(student.createdAt) < semesterAgo
+    ).length;
+
+    // Participation approximations for students who existed a year ago.
+    const prevStudents = allDerived.filter(
+      ({ student }) => new Date(student.createdAt) < semesterAgo
+    );
+    const prevActive = prevStudents.filter(({ meta }) => meta.status === "ACTIVE").length;
+    const prevParticipants = prevStudents.filter(({ meta }) => meta.eventsJoined > 0).length;
+    const prevTop = prevStudents.filter(({ meta }) => meta.status === "TOP_CONTRIBUTOR").length;
+
+    const percentChange = (current: number, previous: number): number =>
+      previous > 0
+        ? Math.round(((current - previous) / previous) * 1000) / 10
+        : current > 0
+          ? 100
+          : 0;
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total: filtered.length,
+        totalPages: Math.ceil(filtered.length / limit) || 1,
+      },
+      summary: {
+        totalStudents: allDerived.length,
+        activeStudents,
+        eventParticipants,
+        topContributors,
+        trends: {
+          totalStudents: percentChange(newThisSemester, newPrevSemester),
+          activeStudents: percentChange(activeStudents, prevActive),
+          eventParticipants: percentChange(eventParticipants, prevParticipants),
+          topContributors: percentChange(topContributors, prevTop),
+        },
+        yearDistribution,
+        participation: {
+          allTime: participation.map((bucket) => bucket.allTime),
+          thisSemester: participation.map((bucket) => bucket.thisSemester),
+        },
+        topParticipants,
+      },
+    };
+  }
+
+  /** Create a student account scoped to the department. */
+  async createDepartmentStudent(
+    departmentId: string,
+    data: CreateDepartmentStudentDto
+  ): Promise<CreatedDepartmentStudent> {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!department) {
+      throw new ApiError(404, "Department not found");
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) {
+      throw new ApiError(409, "A user with this email already exists");
+    }
+
+    if (data.studentID) {
+      const existingRoll = await prisma.user.findFirst({
+        where: { studentID: data.studentID },
+      });
+      if (existingRoll) {
+        throw new ApiError(409, "A student with this roll number already exists");
+      }
+    }
+
+    const studentRole = await prisma.role.findUnique({
+      where: { name: RoleType.STUDENT },
+    });
+
+    if (!studentRole) {
+      throw new ApiError(500, "Role misconfiguration");
+    }
+
+    const hashedPassword = await hashPassword(data.password);
+
+    const created = await prisma.user.create({
+      data: {
+        email: data.email.toLowerCase(),
+        password: hashedPassword,
+        fullName: data.fullName,
+        studentID: data.studentID,
+        roleId: studentRole.id,
+        departmentId,
+        isActive: data.isActive ?? true,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        studentID: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      id: created.id,
+      fullName: created.fullName,
+      email: created.email,
+      studentID: created.studentID ?? undefined,
+      isActive: created.isActive,
+    };
+  }
+
+  /** Activate/deactivate a department student (students cannot self-manage). */
+ async toggleDepartmentStudentStatus(
+    departmentId: string,
+    studentId: string,
+    isActive: boolean
+  ): Promise<CreatedDepartmentStudent> {
+    const student = await prisma.user.findFirst({
+      where: { id: studentId, departmentId, role: { name: RoleType.STUDENT } },
+    });
+    if (!student) {
+      throw new ApiError(404, "Student not found in this department");
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: studentId },
+      data: { isActive },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        studentID: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      fullName: updated.fullName,
+      email: updated.email,
+      studentID: updated.studentID ?? undefined,
+      isActive: updated.isActive,
     };
   }
 

@@ -205,6 +205,54 @@ export const DepartmentRegistrationsFiltersSchema = z.object({
   query: DepartmentRegistrationsFiltersQuery,
 });
 
+// DEPARTMENT STUDENTS FILTERS (QUERY)
+
+const DepartmentStudentsFiltersQuery = z.object({
+  search: z.string().trim().optional(),
+  year: z.string().optional(),
+  section: z.string().optional(),
+  status: z.enum(["active", "inactive", "top"]).optional(),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(10),
+  sortBy: z.enum(["eventsJoined", "name", "joinedAt"]).optional().default("eventsJoined"),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
+export const DepartmentStudentsFiltersSchema = z.object({
+  query: DepartmentStudentsFiltersQuery,
+});
+
+// CREATE DEPARTMENT STUDENT
+
+export const CreateDepartmentStudentSchema = z.object({
+  body: z.object({
+    fullName: z
+      .string("Full name is required")
+      .min(3, "Name must be at least 3 characters")
+      .max(100, "Name cannot exceed 100 characters")
+      .trim(),
+    email: z.string("Email is required").email("Invalid email format").trim().toLowerCase(),
+    studentID: z.string().trim().max(20).optional(),
+    password: z
+      .string("Password is required")
+      .min(8, "Password must be at least 8 characters")
+      .max(100),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+// TOGGLE STUDENT STATUS
+
+export const DepartmentStudentStatusSchema = z.object({
+  params: z.object({
+    id: z.uuid("Invalid department ID"),
+    studentId: z.uuid("Invalid student ID"),
+  }),
+  body: z.object({
+    isActive: z.boolean("isActive is required"),
+  }),
+});
+
 // TYPE EXPORTS
 
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentBody>;
@@ -224,4 +272,7 @@ export type DepartmentAnalyticsFiltersInput = z.infer<
 >;
 export type DepartmentRegistrationsFiltersInput = z.infer<
   typeof DepartmentRegistrationsFiltersQuery
+>;
+export type DepartmentStudentsFiltersInput = z.infer<
+  typeof DepartmentStudentsFiltersQuery
 >;
