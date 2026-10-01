@@ -4,6 +4,7 @@ import departmentReducers from "@/store/slices/departmentSlice";
 import eventReducers from "@/store/slices/eventsSlice";
 import dashboardReducers from "@/store/slices/dashboardSlice";
 import studentReducers from "@/store/slices/studentSlice";
+import groupsReducers from "@/store/slices/groupsSlice";
 
 export const rootReducer = combineReducers({
   auth: authReducers,
@@ -11,4 +12,5 @@ export const rootReducer = combineReducers({
   events: eventReducers,
   dashboard: dashboardReducers,
   student: studentReducers,
+  groups: groupsReducers,
 });

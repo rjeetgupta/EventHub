@@ -14,6 +14,11 @@ import {
   UpdateGroupAdminPermissionsRequest,
   PermissionDefinition,
   DepartmentAnalytics,
+  DepartmentRegistrations,
+  DepartmentRegistrationsFilters,
+  DepartmentStudents,
+  DepartmentStudentsFilters,
+  CreateDepartmentStudentRequest,
 } from '@/lib/schema/department.schema';
 
 interface DepartmentState {
@@ -30,6 +35,14 @@ interface DepartmentState {
   
   // Analytics data
   analytics: DepartmentAnalytics | null;
+
+  // Registrations data (department-wide registrations screen)
+  registrations: DepartmentRegistrations | null;
+
+  // Students data (department students screen)
+  students: DepartmentStudents | null;
+  isAddingStudent: boolean;
+  isTogglingStudent: boolean;
   
   // Pagination
   departmentsPagination: {
@@ -52,6 +65,8 @@ interface DepartmentState {
   isUpdatingDepartment: boolean;
   isDeletingDepartment: boolean;
   isLoadingAnalytics: boolean;
+  isLoadingRegistrations: boolean;
+  isLoadingStudents: boolean;
   
   // Group admin loading states
   isLoadingGroupAdmins: boolean;
@@ -70,6 +85,8 @@ const initialState: DepartmentState = {
   currentGroupAdmin: null,
   availablePermissions: [],
   analytics: null,
+  registrations: null,
+  students: null,
   
   departmentsPagination: {
     total: 0,
@@ -90,6 +107,10 @@ const initialState: DepartmentState = {
   isUpdatingDepartment: false,
   isDeletingDepartment: false,
   isLoadingAnalytics: false,
+  isLoadingRegistrations: false,
+  isLoadingStudents: false,
+  isAddingStudent: false,
+  isTogglingStudent: false,
   
   isLoadingGroupAdmins: false,
   isAssigningAdmin: false,
@@ -209,6 +230,87 @@ export const fetchDepartmentAnalytics = createAsyncThunk<
       return await departmentService.getDepartmentAnalytics(id, filters);
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch analytics');
+    }
+  }
+);
+
+export const fetchDepartmentRegistrations = createAsyncThunk<
+  DepartmentRegistrations,
+  { departmentId: string; filters?: Partial<DepartmentRegistrationsFilters> },
+  { rejectValue: string }
+>(
+  'department/fetchRegistrations',
+  async ({ departmentId, filters }, { rejectWithValue }) => {
+    try {
+      const normalizedFilters: Partial<DepartmentRegistrationsFilters> = {
+        page: filters?.page ?? 1,
+        limit: filters?.limit ?? 10,
+        sortOrder: filters?.sortOrder ?? 'desc',
+        eventId: filters?.eventId,
+        status: filters?.status,
+        search: filters?.search,
+        group: filters?.group,
+        startDate: filters?.startDate,
+        endDate: filters?.endDate,
+      };
+      return await departmentService.getDepartmentRegistrations(departmentId, normalizedFilters);
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch registrations');
+    }
+  }
+);
+
+export const fetchDepartmentStudents = createAsyncThunk<
+  DepartmentStudents,
+  { departmentId: string; filters?: Partial<DepartmentStudentsFilters> },
+  { rejectValue: string }
+>(
+  'department/fetchStudents',
+  async ({ departmentId, filters }, { rejectWithValue }) => {
+    try {
+      const normalizedFilters: Partial<DepartmentStudentsFilters> = {
+        page: filters?.page ?? 1,
+        limit: filters?.limit ?? 10,
+        sortBy: filters?.sortBy ?? 'eventsJoined',
+        sortOrder: filters?.sortOrder ?? 'desc',
+        search: filters?.search,
+        year: filters?.year,
+        section: filters?.section,
+        status: filters?.status,
+      };
+      return await departmentService.getDepartmentStudents(departmentId, normalizedFilters);
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch students');
+    }
+  }
+);
+
+export const addDepartmentStudent = createAsyncThunk<
+  { id: string; fullName: string; email: string; studentID?: string; isActive: boolean },
+  { departmentId: string; data: CreateDepartmentStudentRequest },
+  { rejectValue: string }
+>(
+  'department/addStudent',
+  async ({ departmentId, data }, { rejectWithValue }) => {
+    try {
+      return await departmentService.createDepartmentStudent(departmentId, data);
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to add student');
+    }
+  }
+);
+
+export const toggleDepartmentStudent = createAsyncThunk<
+  { id: string; fullName: string; email: string; studentID?: string; isActive: boolean },
+  { departmentId: string; studentId: string; isActive: boolean },
+  { rejectValue: string }
+>(
+  'department/toggleStudentStatus',
+  async ({ departmentId, studentId, isActive }, { rejectWithValue }) => {
+    try {
+      return await departmentService.toggleDepartmentStudentStatus(departmentId, studentId, isActive);
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to update student status');
     }
   }
 );
@@ -365,6 +467,12 @@ const departmentSlice = createSlice({
     clearAnalytics: (state) => {
       state.analytics = null;
     },
+    clearRegistrations: (state) => {
+      state.registrations = null;
+    },
+    clearStudents: (state) => {
+      state.students = null;
+    },
     setDepartmentError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
     },
@@ -516,6 +624,70 @@ const departmentSlice = createSlice({
       .addCase(fetchDepartmentAnalytics.rejected, (state, action) => {
         state.isLoadingAnalytics = false;
         state.error = action.payload || 'Failed to fetch analytics';
+      });
+
+    // ========================================================================
+    // FETCH DEPARTMENT REGISTRATIONS
+    // ========================================================================
+    builder
+      .addCase(fetchDepartmentRegistrations.pending, (state) => {
+        state.isLoadingRegistrations = true;
+        state.error = null;
+      })
+      .addCase(fetchDepartmentRegistrations.fulfilled, (state, action) => {
+        state.isLoadingRegistrations = false;
+        state.registrations = action.payload;
+      })
+      .addCase(fetchDepartmentRegistrations.rejected, (state, action) => {
+        state.isLoadingRegistrations = false;
+        state.error = action.payload || 'Failed to fetch registrations';
+      });
+
+    // ========================================================================
+    // FETCH DEPARTMENT STUDENTS
+    // ========================================================================
+    builder
+      .addCase(fetchDepartmentStudents.pending, (state) => {
+        state.isLoadingStudents = true;
+        state.error = null;
+      })
+      .addCase(fetchDepartmentStudents.fulfilled, (state, action) => {
+        state.isLoadingStudents = false;
+        state.students = action.payload;
+      })
+      .addCase(fetchDepartmentStudents.rejected, (state, action) => {
+        state.isLoadingStudents = false;
+        state.error = action.payload || 'Failed to fetch students';
+      })
+      .addCase(addDepartmentStudent.pending, (state) => {
+        state.isAddingStudent = true;
+        state.error = null;
+      })
+      .addCase(addDepartmentStudent.fulfilled, (state) => {
+        state.isAddingStudent = false;
+        // Refetch happens in the component; summary counts stay authoritative.
+      })
+      .addCase(addDepartmentStudent.rejected, (state, action) => {
+        state.isAddingStudent = false;
+        state.error = action.payload || 'Failed to add student';
+      })
+      .addCase(toggleDepartmentStudent.pending, (state) => {
+        state.isTogglingStudent = true;
+        state.error = null;
+      })
+      .addCase(toggleDepartmentStudent.fulfilled, (state, action) => {
+        state.isTogglingStudent = false;
+        // Update the row in place if the students list is loaded.
+        if (state.students) {
+          const index = state.students.data.findIndex((row) => row.id === action.payload.id);
+          if (index !== -1) {
+            state.students.data[index].isActive = action.payload.isActive;
+          }
+        }
+      })
+      .addCase(toggleDepartmentStudent.rejected, (state, action) => {
+        state.isTogglingStudent = false;
+        state.error = action.payload || 'Failed to update student status';
       });
 
     // ========================================================================
@@ -680,6 +852,8 @@ export const {
   clearCurrentGroupAdmin,
   clearGroupAdmins,
   clearAnalytics,
+  clearRegistrations,
+  clearStudents,
   setDepartmentError,
   resetDepartmentState,
 } = departmentSlice.actions;
