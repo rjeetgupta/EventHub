@@ -49,7 +49,7 @@ const roleMeta: Record<DashboardRole, RoleMeta> = {
       { value: "0", label: "My Registrations", icon: ClipboardList, trend: "" },
       { value: "0", label: "Bookmarked Events", icon: Heart, trend: "" },
       { value: "0", label: "Events Attended", icon: Star, trend: "" },
-      { value: "0", label: "Upcoming Registered", icon: CalendarDays, trend: "" },
+      { value: "0", label: "Clubs Joined", icon: Users, trend: "" },
     ],
     chartTitle: "My Participation",
     chartSubtitle: "Your event activity over the last 6 months",
@@ -133,8 +133,9 @@ function buildStatValues(
   const summary = (data as StudentDashboardData).summary;
   return {
     "My Registrations": String(summary.totalRegistrations),
+    "Bookmarked Events": String(summary.bookmarkedEvents ?? 0),
     "Events Attended": String(summary.attendedEvents),
-    "Upcoming Registered": String(summary.upcomingRegistered),
+    "Clubs Joined": String(summary.clubsJoined ?? 0),
   };
 }
 
