@@ -272,11 +272,49 @@ export const validateDepartmentCode = (code: string) => {
 };
 
 export const DepartmentAnalyticsSchema = z.object({
-  participationTrends: z.array(
+  /** Queried window; `label` feeds the date-range chip in the header. */
+  range: z.object({
+    start: z.string(),
+    end: z.string(),
+    label: z.string(),
+  }),
+
+  overview: z.object({
+    totalEvents: z.number().int().nonnegative(),
+    totalRegistrations: z.number().int().nonnegative(),
+    uniqueStudents: z.number().int().nonnegative(),
+    activeGroups: z.number().int().nonnegative(),
+    fillRate: z.number().nonnegative(),
+    totalParticipants: z.number().int().nonnegative(),
+    averageAttendance: z.number().nonnegative(),
+    completionRate: z.number().nonnegative(),
+  }),
+
+  /** Percent change vs the preceding window of equal length. */
+  trends: z.object({
+    totalEvents: z.number(),
+    totalRegistrations: z.number(),
+    uniqueStudents: z.number(),
+    activeGroups: z.number(),
+    fillRate: z.number(),
+  }),
+
+  monthlyTrend: z.array(
     z.object({
-      date: z.string().datetime(),
-      participants: z.number().int().nonnegative(),
-      events: z.number().int().nonnegative(),
+      month: z.string(),
+      /** yyyy-mm bucket key, lets the UI filter rolling windows by calendar year. */
+      monthKey: z.string(),
+      registrations: z.number().int().nonnegative(),
+      students: z.number().int().nonnegative(),
+      attendees: z.number().int().nonnegative(),
+    })
+  ),
+
+  eventsByMonth: z.array(
+    z.object({
+      month: z.string(),
+      monthKey: z.string(),
+      count: z.number().int().nonnegative(),
     })
   ),
 
@@ -303,6 +341,75 @@ export const DepartmentAnalyticsSchema = z.object({
       })
     ),
   }),
+
+  topEvents: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      registrations: z.number().int().nonnegative(),
+      capacity: z.number().int().nonnegative(),
+    })
+  ),
+
+  topGroups: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      members: z.number().int().nonnegative(),
+      events: z.number().int().nonnegative(),
+    })
+  ),
+
+  recentEvents: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      date: z.string(),
+      status: z.string(),
+    })
+  ),
+
+  insights: z.array(
+    z.object({
+      icon: z.string(),
+      text: z.string(),
+    })
+  ),
+
+  /** Legacy fields kept for backward compatibility. */
+  participationTrends: z.array(
+    z.object({
+      date: z.string(),
+      participants: z.number().int().nonnegative(),
+      events: z.number().int().nonnegative(),
+    })
+  ),
+
+  topPerformers: z.object({
+    groupAdmins: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        eventsCreated: z.number().int().nonnegative(),
+        totalParticipants: z.number().int().nonnegative(),
+      })
+    ),
+    events: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        participants: z.number().int().nonnegative(),
+      })
+    ),
+  }),
+
+  recentActivity: z.array(
+    z.object({
+      type: z.string(),
+      description: z.string(),
+      timestamp: z.string(),
+    })
+  ),
 });
 
 /**
@@ -310,4 +417,216 @@ export const DepartmentAnalyticsSchema = z.object({
  */
 export type DepartmentAnalytics = z.infer<
   typeof DepartmentAnalyticsSchema
+>;
+
+// ============================================================================
+// REGISTRATIONS (department-wide)
+// ============================================================================
+
+/**
+ * UI status buckets for the registrations screen. The backend maps the Prisma
+ * statuses (REGISTERED/ATTENDED → CONFIRMED, CANCELLED → CANCELLED,
+ * ABSENT → OTHERS) since there is no pending/waitlisted state in the schema.
+ */
+export const RegistrationStatusBucketEnum = z.enum([
+  'CONFIRMED',
+  'CANCELLED',
+  'OTHERS',
+]);
+
+export type RegistrationStatusBucket = z.infer<typeof RegistrationStatusBucketEnum>;
+
+export const DepartmentRegistrationRowSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  userName: z.string(),
+  userEmail: z.string(),
+  userAvatar: z.string().optional(),
+  studentID: z.string().optional(),
+  eventId: z.string(),
+  eventTitle: z.string(),
+  eventDate: z.string(),
+  eventTime: z.string(),
+  group: z
+    .object({ id: z.string(), name: z.string() })
+    .nullable(),
+  status: RegistrationStatusBucketEnum,
+  /** Raw Prisma status (REGISTERED | CANCELLED | ATTENDED | ABSENT). */
+  rawStatus: z.string(),
+  registeredAt: z.string(),
+  attendedAt: z.string().nullable().optional(),
+  cancelledAt: z.string().nullable().optional(),
+});
+
+export type DepartmentRegistrationRow = z.infer<
+  typeof DepartmentRegistrationRowSchema
+>;
+
+export const DepartmentRegistrationsSchema = z.object({
+  data: z.array(DepartmentRegistrationRowSchema),
+  /** Department-wide aggregates — unaffected by table filters. */
+  summary: z.object({
+    totalRegistrations: z.number(),
+    uniqueStudents: z.number(),
+    events: z.number(),
+    newEventsThisMonth: z.number(),
+    confirmed: z.number(),
+    attended: z.number(),
+    cancelled: z.number(),
+    others: z.number(),
+    trends: z.object({
+      totalRegistrations: z.number(),
+      uniqueStudents: z.number(),
+      attended: z.number(),
+      cancelled: z.number(),
+    }),
+    groups: z.array(z.object({ id: z.string(), name: z.string() })),
+    topEvents: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        registrations: z.number(),
+        capacity: z.number(),
+      })
+    ),
+    recentRegistrations: z.array(
+      z.object({
+        id: z.string(),
+        userName: z.string(),
+        userAvatar: z.string().optional(),
+        eventId: z.string(),
+        eventTitle: z.string(),
+        registeredAt: z.string(),
+      })
+    ),
+  }),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
+export type DepartmentRegistrations = z.infer<
+  typeof DepartmentRegistrationsSchema
+>;
+
+export const DepartmentRegistrationsFiltersSchema = z.object({
+  eventId: z.string().optional(),
+  status: RegistrationStatusBucketEnum.optional(),
+  search: z.string().optional(),
+  group: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(10),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export type DepartmentRegistrationsFilters = z.infer<
+  typeof DepartmentRegistrationsFiltersSchema
+>;
+
+// ============================================================================
+// STUDENTS (department-wide)
+// ============================================================================
+
+/** Participation tier derived server-side (see DepartmentStudentStatus). */
+export const StudentStatusBucketEnum = z.enum(['ACTIVE', 'INACTIVE', 'TOP_CONTRIBUTOR']);
+
+export type StudentStatusBucket = z.infer<typeof StudentStatusBucketEnum>;
+
+export const DepartmentStudentRowSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  email: z.string(),
+  userAvatar: z.string().optional(),
+  studentID: z.string().optional(),
+  /** Derived from the admission year in the roll number. */
+  year: z.string(),
+  /** Stable A/B/C bucket (presentation only). */
+  section: z.string(),
+  eventsJoined: z.number(),
+  eventsJoinedThisSemester: z.number(),
+  lastRegisteredAt: z.string().nullable(),
+  status: StudentStatusBucketEnum,
+  isActive: z.boolean(),
+  joinedAt: z.string(),
+});
+
+export type DepartmentStudentRow = z.infer<
+  typeof DepartmentStudentRowSchema
+>;
+
+export const DepartmentStudentsSchema = z.object({
+  data: z.array(DepartmentStudentRowSchema),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    /** Count AFTER search/year/section/status filters. */
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+  /** Department-wide aggregates — unaffected by table filters. */
+  summary: z.object({
+    totalStudents: z.number(),
+    activeStudents: z.number(),
+    eventParticipants: z.number(),
+    topContributors: z.number(),
+    trends: z.object({
+      totalStudents: z.number(),
+      activeStudents: z.number(),
+      eventParticipants: z.number(),
+      topContributors: z.number(),
+    }),
+    yearDistribution: z.array(
+      z.object({ year: z.string(), count: z.number() })
+    ),
+    /** Events-joined buckets [0, 1-2, 3-5, 6-10, 10+]. */
+    participation: z.object({
+      allTime: z.array(z.number()),
+      thisSemester: z.array(z.number()),
+    }),
+    topParticipants: z.array(
+      z.object({
+        id: z.string(),
+        fullName: z.string(),
+        email: z.string(),
+        userAvatar: z.string().optional(),
+        eventsJoined: z.number(),
+      })
+    ),
+  }),
+});
+
+export type DepartmentStudents = z.infer<
+  typeof DepartmentStudentsSchema
+>;
+
+export const DepartmentStudentsFiltersSchema = z.object({
+  search: z.string().optional(),
+  year: z.string().optional(),
+  section: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'top']).optional(),
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(10),
+  sortBy: z.enum(['eventsJoined', 'name', 'joinedAt']).default('eventsJoined'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export type DepartmentStudentsFilters = z.infer<
+  typeof DepartmentStudentsFiltersSchema
+>;
+
+export const CreateDepartmentStudentRequestSchema = z.object({
+  fullName: z.string().min(3, 'Name must be at least 3 characters').max(100),
+  email: z.string().email('Invalid email address'),
+  studentID: z.string().max(20).optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  isActive: z.boolean().optional(),
+});
+
+export type CreateDepartmentStudentRequest = z.infer<
+  typeof CreateDepartmentStudentRequestSchema
 >;
